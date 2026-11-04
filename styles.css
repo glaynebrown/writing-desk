@@ -428,11 +428,11 @@ body.focus-mode .side-show { display: none !important; }
 .chlist { list-style: none; margin: 0; padding: 0; }
 .chrow { display: flex; align-items: baseline; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-size: 14.5px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: pan-y; }
 .chrow:hover { background: var(--line-soft); }
-/* the open chapter: no box, just a small accent dot by the number and accent text (her pick C) */
+/* the open chapter: no box; a little quill (accent) stands in for its number, name in accent */
 .chrow.on { color: var(--accent-deep); font-weight: 700; }
 .chrow.on:not(:hover) { background: transparent; }
-.chrow.on .chn { color: var(--accent); }
-.chrow.on::before { content: ''; position: absolute; left: 1px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--accent); }
+.chrow.on .chn { position: relative; color: transparent; }
+.chrow.on .chn::after { content: ''; position: absolute; left: -1px; top: 50%; width: 14px; height: 14px; margin-top: -8px; background: var(--accent); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21.2 2.6c-5.7.2-10.4 2.9-13.1 7.4-1.3 2.1-2 4.5-2.3 6.9l-.1.9-3 3 1 1 3-3 .9-.1c2.4-.3 4.8-1 6.9-2.3l-2.9-.5 4.4-1.5c1.6-1.3 3-3 4-4.9l-3.3-.4 4.2-1.7c.6-1.6.8-3.2.3-4.8z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21.2 2.6c-5.7.2-10.4 2.9-13.1 7.4-1.3 2.1-2 4.5-2.3 6.9l-.1.9-3 3 1 1 3-3 .9-.1c2.4-.3 4.8-1 6.9-2.3l-2.9-.5 4.4-1.5c1.6-1.3 3-3 4-4.9l-3.3-.4 4.2-1.7c.6-1.6.8-3.2.3-4.8z'/%3E%3C/svg%3E") center / contain no-repeat; }
 .chrow.dragging { background: var(--paper); box-shadow: 0 6px 18px rgba(50, 30, 10, .2); opacity: .95; }
 .chn { color: var(--ink-faint); font-size: 12px; min-width: 16px; font-weight: 600; }
 .cht { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
