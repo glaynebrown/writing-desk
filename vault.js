@@ -274,6 +274,7 @@ const Vault = (() => {
     W.settle = () => Promise.all([...Object.values(chains), ...Object.values(docChains)]);
     W.saveProject = (pid, patch) => {
       if (isLocked(pid) && 'words' in patch) patch = { ...patch, words: 0 };
+      if (isLocked(pid) && 'pages' in patch) patch = { ...patch, pages: 0 }; // (how long it is stays private too)
       return api.saveProject(pid, patch);
     };
     // Lock or unlock a whole project's chapters (the project doc is changed by the caller).

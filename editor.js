@@ -197,6 +197,8 @@ const Editor = (() => {
 
   function close() {
     if (!P) return;
+    keepSpot(true);
+    clearTimeout(P.spotT);
     Find.close();
     if (P.reading) Book.close(true);
     flushAll();
@@ -205,6 +207,9 @@ const Editor = (() => {
     clearTimeout(P.emptyT);
     clearTimeout(P.resizeT);
     clearTimeout(P.fontT);
+    clearTimeout(P.pagesT);
+    clearTimeout(P.countT);
+    P.countRun = -1;
     if (document.fonts) document.fonts.removeEventListener('loadingdone', onFontsDone);
     Object.values(P.pageT || {}).forEach(clearTimeout);
     window.removeEventListener('scroll', onScroll);
@@ -310,6 +315,7 @@ const Editor = (() => {
     if (first) {
       sceneMini();
       setMode();
+      countPhonePages(1500);
       setTimeout(() => {
         paginateAll();
         onScroll();
@@ -318,7 +324,8 @@ const Editor = (() => {
         if (P && !narrow() && P.chapters.length === 1 && !countWords(P.chapters[0].html)) {
           const b = $('.chap-body');
           if (b) placeCaret(b, false);
-        }
+          P.spotReady = true;
+        } else restoreSpot();
       }, 60);
     } else {
       (P.repage || []).forEach(paginate);
@@ -396,7 +403,31 @@ const Editor = (() => {
 
   function renderWords() {
     const total = P.chapters.reduce((a, c) => a + (c.words || 0), 0);
-    $('#p-words').textContent = plural(total, 'word');
+    const pages = P.pages != null ? P.pages : P.project.pages;
+    $('#p-words').textContent = plural(total, 'word') + (pages ? ` · ${plural(pages, 'page')}` : '');
+  }
+  // Total pages = the writing view's pages on the Mac (the book's page size). The iPhone doesn't
+  // show those pages, so it works the same number out quietly (Pages.layout, as the Mac's book view
+  // does) and, until then, shows the last count saved with the project.
+  function setPages(n) {
+    if (!P || !n) return;
+    P.pages = n;
+    renderWords();
+    clearTimeout(P.pagesT);
+    if (n !== P.project.pages) P.pagesT = setTimeout(() => { if (!P) return; P.project.pages = n; P.ctx.api.saveProject(P.pid, { pages: n }); }, 3000);
+  }
+  function countPhonePages(wait) {
+    if (!P || P.paged) return;
+    clearTimeout(P.countT);
+    P.countT = setTimeout(() => {
+      if (!P || P.paged || P.reading) return;
+      const me = P, run = (P.countRun || 0) + 1;
+      P.countRun = run;
+      const chapters = P.chapters.map(c => { const body = bodyOf(c.id); return { id: c.id, title: c.title || '', html: body ? clean(body.innerHTML) : (c.html || '') }; });
+      const sz = Pages.sizeOf(P.project);
+      let n = 0;
+      Pages.layout(P.project, chapters, sz.W, sz.H, () => P === me && me.countRun === run, (page, done) => { if (page) n++; if (done && P === me) setPages(n); });
+    }, wait);
   }
 
   function showSync() {
@@ -611,6 +642,7 @@ const Editor = (() => {
   function renumber() {
     let n = 1;
     $$('#paper .pcard .pnum').forEach(s => { s.textContent = n++; });
+    if (P && P.paged) setPages(n - 1);
   }
 
   // ---------- saving ----------
@@ -657,6 +689,7 @@ const Editor = (() => {
     c.html = html; c.words = words; c.mnotes = mnotes;
     P.ctx.api.saveChapter(cid, { html, words, mnotes });
     renderWords();
+    countPhonePages(4000);
     const row = $(`.chrow[data-cid="${cid}"] .chw`);
     if (row) row.textContent = num(words);
     saveTotals();
@@ -679,7 +712,7 @@ const Editor = (() => {
     };
     if (now) go(); else P.totalT = setTimeout(go, 4000);
   }
-  function onHide() { if (document.visibilityState === 'hidden') { flushAll(); saveTotals(true); } }
+  function onHide() { if (document.visibilityState === 'hidden') { flushAll(); saveTotals(true); keepSpot(true); } }
 
   // ---------- events ----------
   function bind() {
@@ -823,6 +856,7 @@ const Editor = (() => {
     const sec = n && (n.nodeType === 1 ? n : n.parentNode).closest && (n.nodeType === 1 ? n : n.parentNode).closest('section.chap');
     if (sec && P && sec.dataset.cid !== P.current) setCurrent(sec.dataset.cid);
     if (sec && P) showAlign();
+    if (sec && P) keepSpot();
   }
 
   // ---------- where am I ----------
@@ -838,6 +872,53 @@ const Editor = (() => {
     }
     if (!cur && P.chapters[0]) cur = P.chapters[0].id;
     if (cur !== P.current) setCurrent(cur);
+    keepSpot();
+  }
+
+  // ---------- where she was writing (project.writeAt, synced like the book view's readAt) ----------
+  // { cid, block, offset } = the top of the screen; caret: { cid, i, c } = the cursor, if it's in a chapter.
+  // Saved a moment after scrolling or moving the cursor; on opening, the writing view goes back there.
+  function spotNow() {
+    const top = position();
+    if (!top) return null;
+    let caret = null;
+    const sel = window.getSelection();
+    const n = sel.rangeCount && sel.anchorNode;
+    const sec = n && (n.nodeType === 1 ? n : n.parentNode).closest('section.chap');
+    if (sec) { const sp = spot(sec.querySelector('.chap-body'), n, sel.anchorOffset); if (sp) caret = { cid: sec.dataset.cid, ...sp }; }
+    return { ...top, caret };
+  }
+  function keepSpot(now) {
+    if (!P || !P.spotReady || P.reading) return;
+    clearTimeout(P.spotT);
+    const save = () => {
+      if (!P || P.reading) return;
+      const at = spotNow();
+      if (!at || JSON.stringify(at) === JSON.stringify(P.project.writeAt || null)) return;
+      P.project.writeAt = at;
+      P.ctx.api.saveProject(P.pid, { writeAt: at });
+    };
+    if (now) save(); else P.spotT = setTimeout(save, 1200);
+  }
+  function restoreSpot() {
+    const at = P && P.project.writeAt;
+    const go = () => {
+      if (!P || !at || !$(`section.chap[data-cid="${at.cid}"]`)) return;
+      goTo(at, true);
+      setCurrent(at.cid);
+      const c = at.caret;
+      const body = c && bodyOf(c.cid);
+      if (c && body && !narrow()) {
+        const where = place(body, c);
+        if (where) {
+          const r = document.createRange();
+          try { r.setStart(where[0], where[1]); r.collapse(true); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {}
+        }
+      }
+    };
+    go();
+    // once the late fonts have settled the pages, go there again; then start keeping the spot
+    setTimeout(() => { if (!P) return; if (!P.spotReady) go(); P.spotReady = true; }, 900);
   }
   function setCurrent(cid) {
     P.current = cid;
@@ -1556,7 +1637,7 @@ const Editor = (() => {
     }
     return { cid: sec.dataset.cid, block, offset };
   }
-  function goTo(pos) {
+  function goTo(pos, quiet) {
     const sec = $(`section.chap[data-cid="${pos.cid}"]`);
     if (!sec) return;
     const body = sec.querySelector('.chap-body');
@@ -1574,16 +1655,17 @@ const Editor = (() => {
           r.collapse(true);
           const rr = r.getClientRects()[0] || r.getBoundingClientRect();
           if (rr && rr.height) rect = rr;
-          if (!narrow()) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+          if (!narrow() && !quiet) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
           break;
         }
         left -= n.nodeValue.length;
       }
     } else {
       if (pos.block === 0) rect = sec.getBoundingClientRect();
-      if (!narrow()) placeCaret(el, false);
+      if (!narrow() && !quiet) placeCaret(el, false);
     }
     window.scrollTo({ top: rect.top + window.scrollY - TOP_OFFSET() - 8 });
+    if (quiet) return;
     el.classList.add('flash');
     setTimeout(() => el.classList.remove('flash'), 1400);
   }
