@@ -181,7 +181,18 @@ const Editor = (() => {
     window.addEventListener('pagehide', flushAll);
     document.addEventListener('keydown', onKey);
     document.addEventListener('selectionchange', onSelection);
-    if (document.fonts) document.fonts.ready.then(() => { if (P) { paginateAll(); layoutNotes(); } });
+    if (document.fonts) {
+      document.fonts.ready.then(() => { if (P) { paginateAll(); layoutNotes(); } });
+      // A font face can arrive later too (the italic or bold of the writing font loads the first time
+      // italic or bold text shows). Its letters are a little wider than the stand-in's, so the lines
+      // move: lay the pages out again, or text runs past the bottom of a page.
+      document.fonts.addEventListener('loadingdone', onFontsDone);
+    }
+  }
+  function onFontsDone() {
+    if (!P) return;
+    clearTimeout(P.fontT);
+    P.fontT = setTimeout(() => { if (P) { paginateAll(); layoutNotes(); } }, 150);
   }
 
   function close() {
@@ -193,6 +204,8 @@ const Editor = (() => {
     if (P.unsub) P.unsub();
     clearTimeout(P.emptyT);
     clearTimeout(P.resizeT);
+    clearTimeout(P.fontT);
+    if (document.fonts) document.fonts.removeEventListener('loadingdone', onFontsDone);
     Object.values(P.pageT || {}).forEach(clearTimeout);
     window.removeEventListener('scroll', onScroll);
     window.removeEventListener('resize', onResize);
