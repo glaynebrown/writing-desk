@@ -616,9 +616,11 @@ const Editor = (() => {
       keep = { a: spot(body, r.startContainer, r.startOffset), b: spot(body, r.endContainer, r.endOffset) };
     }
     unspace(body);
-    const base = sec.getBoundingClientRect().top;
     let k = 0;
     for (; k < 3000; k++) {
+      // measured again for every page: adding a spacer can make the browser nudge the scroll
+      // (to keep what's on screen steady), and an old measurement would put the next cut in the wrong place
+      const base = sec.getBoundingClientRect().top;
       const limit = k * (H + G) + H - bot;
       const at = lineBelow(body, limit, base);
       if (!at) break;
