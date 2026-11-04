@@ -289,7 +289,7 @@ const Editor = (() => {
       return;
     }
     clearTimeout(P.emptyT);
-    if (P.renumber && !P.pending) { P.renumber = false; renumber(); }
+    if (P.retitle && !P.pending) { P.retitle = false; retitle(); }
     renderPaper();
     renderList();
     renderWords();
@@ -706,7 +706,7 @@ const Editor = (() => {
         renderPaper();
         renderList();
         P.ctx.api.orderChapters(list);
-        renumber();
+        retitle();
       },
     });
   }
@@ -1220,7 +1220,7 @@ const Editor = (() => {
     if (P.state[c.id]) P.state[c.id].titleDirty = false;
   }
   // put the app's own titles back in step with the order
-  function renumber() {
+  function retitle() {
     if (!P || P.project.kind === 'short') return;
     let changed = false;
     for (const c of P.chapters) {
@@ -1241,7 +1241,7 @@ const Editor = (() => {
     P.ctx.api.saveChapter(cid, { special: word });
     // its own title follows: "Prologue" while special; back to "Chapter X" when it isn't
     if (!word && (c.title || '').trim() === was) setTitle(c, 'Chapter One'); // (renumbered next)
-    renumber();
+    retitle();
     renderList();
   }
   function specialPop(anchor, cid, after) {
@@ -1306,7 +1306,7 @@ const Editor = (() => {
         renderPaper();
         renderList();
         P.ctx.api.orderChapters(list);
-        renumber();
+        retitle();
         const nums = numbering();
         $$('#chlist-s .chrow').forEach(r => { const i = P.chapters.findIndex(c => c.id === r.dataset.cid); if (i >= 0) r.querySelector('.chn').outerHTML = chnHtml(P.chapters[i], nums[i]); });
       },
@@ -1323,7 +1323,7 @@ const Editor = (() => {
     const body = bodyOf(c.id);
     snapshot(c, body ? clean(body.innerHTML) : c.html, { deleted: true, chOrder: c.order || 0, notes: c.notes || '', special: c.special || '' });
     delete P.state[c.id];
-    P.renumber = true;
+    P.retitle = true;
     P.ctx.api.deleteChapters([c.id]);
   }
 
@@ -1413,7 +1413,7 @@ const Editor = (() => {
       if (!b) return;
       const v = list.find(x => x.id === b.dataset.back);
       const order = (P.chapters.length ? Math.max(...P.chapters.map(c => c.order || 0)) : 0) + 1;
-      P.renumber = true;
+      P.retitle = true;
       P.ctx.api.addChapters(P.pid, [{ title: v.title || '', html: v.html, words: v.words || 0, notes: v.notes || '', special: v.special || '', order }]);
       P.ctx.api.deleteDoc('versions', v.id);
       closeSheet(true);
