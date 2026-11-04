@@ -148,9 +148,9 @@ const Vault = (() => {
   }
 
   // ---- the database calls, with locked chapters scrambled ----
-  const SECRET = ['title', 'html', 'words', 'notes', 'mnotes'];
-  const BLANK = { title: '', html: '', words: 0, notes: '', mnotes: {} };
-  const pick = c => ({ title: c.title || '', html: c.html || '', words: c.words || 0, notes: c.notes || '', mnotes: c.mnotes || {} });
+  const SECRET = ['title', 'html', 'words', 'notes', 'mnotes', 'special'];
+  const BLANK = { title: '', html: '', words: 0, notes: '', mnotes: {}, special: '' };
+  const pick = c => ({ title: c.title || '', html: c.html || '', words: c.words || 0, notes: c.notes || '', mnotes: c.mnotes || {}, special: c.special || '' });
   const sealed = async (c, k) => ({ ...BLANK, enc: await seal(pick(c), k) });
 
   function wrap(api, isLocked) {

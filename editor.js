@@ -289,6 +289,7 @@ const Editor = (() => {
       return;
     }
     clearTimeout(P.emptyT);
+    if (P.renumber && !P.pending) { P.renumber = false; renumber(); }
     renderPaper();
     renderList();
     renderWords();
@@ -373,8 +374,9 @@ const Editor = (() => {
   function renderList() {
     const ol = $('#chlist');
     if (!ol) return;
+    const nums = numbering();
     ol.innerHTML = P.chapters.map((c, i) => `<li class="chrow ${P.current === c.id ? 'on' : ''}" data-cid="${c.id}">
-      <span class="chn">${i + 1}</span><span class="cht">${esc(c.title || 'Untitled chapter')}</span><span class="chw">${num(c.words || 0)}</span>
+      ${chnHtml(c, nums[i])}<span class="cht">${esc(c.title || 'Untitled chapter')}</span><span class="chw">${num(c.words || 0)}</span>
       <button class="chnote ${(c.notes || '').trim() ? 'has' : ''}" data-cnote="${c.id}" data-nodrag title="Chapter notes" aria-label="Chapter notes">${icon('notes')}</button>
     </li>`).join('');
   }
@@ -616,7 +618,10 @@ const Editor = (() => {
     if (!st || !body) return;
     clearTimeout(st.timer);
     if (st.titleDirty) {
-      const title = $(`section.chap[data-cid="${cid}"] .chap-title`).value.trim();
+      const inp = $(`section.chap[data-cid="${cid}"] .chap-title`);
+      let title = inp.value.trim();
+      // a book chapter's title cleared (and left): its automatic one comes back
+      if (!title && P.project.kind !== 'short' && document.activeElement !== inp && P.byId[cid]) { title = autoTitle(P.byId[cid]); inp.value = title; }
       st.titleDirty = false;
       P.ctx.api.saveChapter(cid, { title });
       if (P.byId[cid]) P.byId[cid].title = title;
@@ -679,6 +684,11 @@ const Editor = (() => {
     root.addEventListener('keydown', onEditKey);
     root.addEventListener('paste', onPaste);
     root.addEventListener('focusout', e => {
+      const t = e.target;
+      if (t.classList && t.classList.contains('chap-title') && !t.value.trim() && P.project.kind !== 'short') {
+        const c = P.byId[t.closest('section.chap').dataset.cid];
+        if (c) { t.value = autoTitle(c); P.state[c.id].titleDirty = true; }
+      }
       const sec = e.target.closest && e.target.closest('section.chap');
       if (sec) flush(sec.dataset.cid);
     });
@@ -696,6 +706,7 @@ const Editor = (() => {
         renderPaper();
         renderList();
         P.ctx.api.orderChapters(list);
+        renumber();
       },
     });
   }
@@ -704,6 +715,8 @@ const Editor = (() => {
     const a = e.target.closest('[data-act]');
     const cn = e.target.closest('[data-cnote]');
     if (cn) return chapterNotes(cn.dataset.cnote);
+    const num = e.target.closest('#chlist .chn');
+    if (num && !a) return specialPop(num, num.closest('.chrow').dataset.cid);
     const row = e.target.closest('.chrow');
     if (row && !a) { jumpTo(row.dataset.cid); if (narrow()) closeSheet(); return; }
     const scene = e.target.closest('.chap-body .scene');
@@ -1183,12 +1196,80 @@ const Editor = (() => {
     setTimeout(() => t.focus(), 80);
   }
 
+  // ---------- special sections (a prologue, epilogue… isn't numbered as a chapter) ----------
+  // chapter.special = its word ('Prologue'); '' = a numbered chapter. Book titles in the
+  // "Chapter Four" form (or a special word, on a special section) are the app's own: they follow
+  // the numbering when chapters move. A title she typed is left alone; clearing one brings it back.
+  const SPECIALS = ['Foreword', 'Preface', 'Prologue', 'Interlude', 'Epilogue', 'Afterword'];
+  const AUTO = /^chapter\s+([a-z]+(-[a-z]+)?|\d+)$/i;
+  // the list number of each chapter (null for a special section)
+  function numbering() { let k = 0; return P.chapters.map(c => (c.special ? null : ++k)); }
+  // (a special section titled just its word shows the word once: an empty slot here, the title in italics)
+  const chnHtml = (c, n) => (!c.special ? `<span class="chn" title="Make this a prologue, epilogue…">${n}</span>`
+    : `<span class="chn sp ${(c.title || '').trim() === c.special ? 'same' : ''}" title="${esc(c.special)} — not counted as a chapter. Click to change.">${(c.title || '').trim() === c.special ? '' : esc(c.special)}</span>`);
+  function autoTitle(c) {
+    if (c.special) return c.special;
+    const i = P.chapters.filter(x => !x.special).indexOf(c);
+    return `Chapter ${numWord(i + 1)}`;
+  }
+  function setTitle(c, title) {
+    c.title = title;
+    P.ctx.api.saveChapter(c.id, { title });
+    const inp = $(`section.chap[data-cid="${c.id}"] .chap-title`);
+    if (inp && document.activeElement !== inp) inp.value = title;
+    if (P.state[c.id]) P.state[c.id].titleDirty = false;
+  }
+  // put the app's own titles back in step with the order
+  function renumber() {
+    if (!P || P.project.kind === 'short') return;
+    let changed = false;
+    for (const c of P.chapters) {
+      const t = (c.title || '').trim();
+      const own = c.special ? !t || AUTO.test(t) || SPECIALS.includes(t) : AUTO.test(t);
+      if (!own) continue;
+      const want = autoTitle(c);
+      if (t !== want) { setTitle(c, want); changed = true; }
+    }
+    if (changed) renderList();
+  }
+  function setSpecial(cid, word) {
+    const c = P.byId[cid];
+    if (!c || (c.special || '') === word) return;
+    flush(cid);
+    const was = c.special || '';
+    c.special = word;
+    P.ctx.api.saveChapter(cid, { special: word });
+    // its own title follows: "Prologue" while special; back to "Chapter X" when it isn't
+    if (!word && (c.title || '').trim() === was) setTitle(c, 'Chapter One'); // (renumbered next)
+    renumber();
+    renderList();
+  }
+  function specialPop(anchor, cid, after) {
+    const c = P.byId[cid];
+    if (!c) return;
+    const cur = c.special || '';
+    const other = cur && !SPECIALS.includes(cur) ? cur : '';
+    const pop = popover(anchor, `<div class="spec-pop"><div class="pop-title">This section is…</div>
+      <button class="pop-item ${cur ? '' : 'on'}" data-pick="">${icon('list')} A chapter <small class="muted">(numbered)</small></button>
+      ${SPECIALS.map(w => `<button class="pop-item ${cur === w ? 'on' : ''}" data-pick="${w}">${esc(w)}</button>`).join('')}
+      <form class="pop-other"><input class="input" placeholder="Something else, like Dedication" value="${esc(other)}" maxlength="30" aria-label="Something else"><button class="btn small">Use</button></form>
+      <p class="pop-hint">Not counted as a chapter: it shows its name in the list instead of a number.</p></div>`, word => { setSpecial(cid, word); if (after) after(); });
+    pop.querySelector('.pop-other').addEventListener('submit', e => {
+      e.preventDefault();
+      const w = e.target.querySelector('input').value.trim();
+      if (!w) return;
+      closePopover();
+      setSpecial(cid, w.charAt(0).toUpperCase() + w.slice(1));
+      if (after) after();
+    });
+  }
+
   // ---------- chapters ----------
   function addChapter() {
     flushAll();
     const n = P.chapters.length + 1;
     const order = (P.chapters.length ? Math.max(...P.chapters.map(c => c.order || 0)) : 0) + 1;
-    const title = P.project.kind === 'short' ? (n > 1 ? `Chapter ${n}` : '') : `Chapter ${numWord(n)}`;
+    const title = P.project.kind === 'short' ? (n > 1 ? `Chapter ${n}` : '') : `Chapter ${numWord(P.chapters.filter(c => !c.special).length + 1)}`;
     const made = P.ctx.api.addChapters(P.pid, [{ title, order }]);
     if (narrow()) closeSheet();
     // wait for it to arrive, then go there
@@ -1203,11 +1284,14 @@ const Editor = (() => {
     go();
   }
   function chaptersSheet() {
+    const nums = numbering();
     const el = sheet(`<h2>Chapters</h2><ol class="chlist in-sheet" id="chlist-s">${P.chapters.map((c, i) => `<li class="chrow ${P.current === c.id ? 'on' : ''}" data-cid="${c.id}">
-      <span class="chn">${i + 1}</span><span class="cht">${esc(c.title || 'Untitled chapter')}</span><span class="chw">${num(c.words || 0)}</span></li>`).join('')}</ol>
-      <p class="hint">Press and hold a chapter to drag it to a new spot.</p>
+      ${chnHtml(c, nums[i])}<span class="cht">${esc(c.title || 'Untitled chapter')}</span><span class="chw">${num(c.words || 0)}</span></li>`).join('')}</ol>
+      <p class="hint">Press and hold a chapter to drag it to a new spot. Tap its number to make it a prologue, epilogue…</p>
       <button class="btn wide" data-act="add-chapter">${icon('plus')} Add a chapter</button>`);
     el.addEventListener('click', e => {
+      const num = e.target.closest('.chn');
+      if (num) return specialPop(num, num.closest('.chrow').dataset.cid, () => { closeSheet(); chaptersSheet(); });
       const row = e.target.closest('.chrow');
       if (row) { closeSheet(); jumpTo(row.dataset.cid); }
       if (e.target.closest('[data-act="add-chapter"]')) addChapter();
@@ -1222,7 +1306,9 @@ const Editor = (() => {
         renderPaper();
         renderList();
         P.ctx.api.orderChapters(list);
-        $$('#chlist-s .chn').forEach((n, i) => { n.textContent = i + 1; });
+        renumber();
+        const nums = numbering();
+        $$('#chlist-s .chrow').forEach(r => { const i = P.chapters.findIndex(c => c.id === r.dataset.cid); if (i >= 0) r.querySelector('.chn').outerHTML = chnHtml(P.chapters[i], nums[i]); });
       },
     });
   }
@@ -1235,8 +1321,9 @@ const Editor = (() => {
     if (!ok) return;
     flush(c.id);
     const body = bodyOf(c.id);
-    snapshot(c, body ? clean(body.innerHTML) : c.html, { deleted: true, chOrder: c.order || 0, notes: c.notes || '' });
+    snapshot(c, body ? clean(body.innerHTML) : c.html, { deleted: true, chOrder: c.order || 0, notes: c.notes || '', special: c.special || '' });
     delete P.state[c.id];
+    P.renumber = true;
     P.ctx.api.deleteChapters([c.id]);
   }
 
@@ -1326,7 +1413,8 @@ const Editor = (() => {
       if (!b) return;
       const v = list.find(x => x.id === b.dataset.back);
       const order = (P.chapters.length ? Math.max(...P.chapters.map(c => c.order || 0)) : 0) + 1;
-      P.ctx.api.addChapters(P.pid, [{ title: v.title || '', html: v.html, words: v.words || 0, notes: v.notes || '', order }]);
+      P.renumber = true;
+      P.ctx.api.addChapters(P.pid, [{ title: v.title || '', html: v.html, words: v.words || 0, notes: v.notes || '', special: v.special || '', order }]);
       P.ctx.api.deleteDoc('versions', v.id);
       closeSheet(true);
       toast(`“${v.title || 'Untitled chapter'}” is back, at the end`);
