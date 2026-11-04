@@ -192,6 +192,7 @@ const Pages = (() => {
         if (b.classList.contains('scene')) {
           const d = document.createElement('div');
           d.className = 'bscene';
+          d.dataset.s = b.dataset.s || '';
           d.textContent = b.textContent;
           cur.content.appendChild(d);
           if (!fits()) { cur.content.removeChild(d); newPage({ cid: ch.id, block: bi, offset: 0 }, title); cur.content.appendChild(d); }

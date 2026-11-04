@@ -410,6 +410,8 @@
     const start = Themes.norm(p.look);
     let look = JSON.parse(JSON.stringify(start));
     let scene = p.sceneBreak || 'fleuron';
+    let sceneImg = p.sceneImg || ''; // her own scene-break picture (an image id)
+    const sceneUps = [];             // pictures uploaded in this sheet (removed again if not kept)
     let saved = false;
     const tryOn = () => { lookPreview = look; paint(); Editor.relayout(); };
     const colorsNow = () => Themes.colors(look);
@@ -435,7 +437,7 @@
         ${row('para', `${look.indent === 'book' ? 'Book style' : 'Indent every paragraph'}${look.dropcap ? ' · big first letter' : ''}`)}
         ${row('paper', esc(nameOf(Themes.TEXTURES, look.texture).name) + (look.texture === 'walnut' ? (look.walnut === 'page' ? ' · just the page' : ' · whole screen') : ''))}
         ${row('bg', `${thumb}${esc(bgText)}`)}
-        ${row('scene', `<span class="ap-orn">${esc(Editor.sceneOf(scene).t)}</span>`)}
+        ${row('scene', `<span class="ap-orn">${Editor.sceneTile(scene)}</span>`)}
       </div>`;
     };
     const pageHtml = () => {
@@ -455,7 +457,10 @@
       }
       if (pg === 'bg') return bgField();
       if (pg === 'scene') return `<p class="hint">What the scene-break button puts in.</p>
-        <div class="scene-grid big">${Editor.SCENES.map(x => `<button class="scene-opt ${x.id === scene ? 'on' : ''}" data-scene="${x.id}"><span>${esc(x.t)}</span></button>`).join('')}</div>
+        <div class="scene-grid big">${Editor.SCENES.map(x => x.id === 'own' && !sceneImg
+          ? `<button class="scene-opt add" data-sceneup>${icon('plus')}<small>Your own picture</small></button>`
+          : `<button class="scene-opt ${x.id === scene ? 'on' : ''}" data-scene="${x.id}"><span>${Editor.sceneTile(x.id)}</span>${x.id === 'own' ? '<small>Your picture</small>' : ''}</button>`).join('')}</div>
+        ${sceneImg ? `<p class="hint">Your picture: <button class="link" data-sceneup>Use a different picture</button></p>` : `<p class="hint">Your own picture: a drawing or ornament on a white or see-through background works best. It’s shown in your text color.</p>`}
         <label class="check"><input type="checkbox" id="lk-all" ${allScenes ? 'checked' : ''}> Change the scene breaks I already have to this design too</label>`;
       return '';
     };
@@ -481,7 +486,7 @@
             ${bg.video ? `<button class="bg-pic on" data-bgyt title="Change the video"><img src="${Backdrop.videoThumb(bg.video.id)}" alt=""><span>${icon('youtube', 'inline')} YouTube video</span></button>`
               : `<button class="bg-pic add" data-bgyt>${icon('youtube')}<span>YouTube video</span></button>`}
           </div>
-          ${bg.video ? `<p class="hint">The video plays on the Mac, muted — the speaker button in the corner turns sound on. On the iPhone (and offline) the photo shows instead: <b>${esc(bg.photo && bg.photo.starter ? (Backdrop.STARTERS.find(x => x.id === bg.photo.starter) || {}).name : 'your photo')}</b>. <button class="link" data-bgytx>Stop using the video</button></p>` : ''}
+          ${bg.video ? `<p class="hint">The video plays on the Mac, muted — the speaker button at the top turns sound on. On the iPhone (and offline) the photo shows instead: <b>${esc(bg.photo && bg.photo.starter ? (Backdrop.STARTERS.find(x => x.id === bg.photo.starter) || {}).name : 'your photo')}</b>. <button class="link" data-bgytx>Stop using the video</button></p>` : ''}
           ${boardPics ? `<div class="bg-pics board">${boardPics.length ? boardPics.map(b => `<button class="bg-pic ${on(bg.photo && bg.photo.imageId === b.imageId)}" data-bgpin="${b.imageId}"><img data-img="${b.imageId}" alt=""></button>`).join('') : '<p class="hint">No board photos yet.</p>'}</div>` : ''}
           <div class="bg-sliders"><label>Darker<input type="range" min="0" max="80" step="5" value="${Math.round(bg.dim * 100)}" data-bgr="dim"></label><label>Blur<input type="range" min="0" max="20" step="1" value="${bg.blur || 0}" data-bgr="blur"></label></div>` : ''}
         <label class="sub-label">Moving effect <small>(on the photo, or on plain paper)</small></label>
@@ -494,7 +499,10 @@
     const el = sheet(`<div id="lk-head">${head()}</div><div id="lk-body">${draw()}</div>
       <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="lk-save">Save</button></div>`, {
       cls: 'wide look-sheet',
-      onClose: () => { lookPreview = null; paint(); Editor.relayout(); if (!saved) dropUnused(null); },
+      onClose: () => {
+        lookPreview = null; paint(); Editor.relayout();
+        if (!saved) { dropUnused(null); sceneUps.forEach(id => API.deleteImage(id)); Editor.ownScene(p, LAPI); }
+      },
     });
     fillBg(el);
     const redraw = () => { const open = $('details.custom', el) && $('details.custom', el).open; const y = el.scrollTop; $('#lk-head').innerHTML = head(); $('#lk-body').innerHTML = draw(); if (open) $('details.custom', el).open = true; el.scrollTop = y; fillBg(el); tryOn(); };
@@ -552,6 +560,20 @@
       if (wl) { look.walnut = wl.dataset.wal; return redraw(); }
       const tx = t.closest('[data-tex]');
       if (tx) { look.texture = tx.dataset.tex; return redraw(); }
+      if (t.closest('[data-sceneup]')) {
+        const f = await pickFile('image/*');
+        if (!f) return;
+        try {
+          const img = await UI.prepLineArt(f);
+          const id = await LAPI.putImage({ ...img, pid: p.id });
+          sceneUps.push(id);
+          sceneImg = id;
+          scene = 'own';
+          Editor.ownScene({ sceneImg }, LAPI);
+          redraw();
+        } catch (err) { oops(err); }
+        return;
+      }
       const sc = t.closest('[data-scene]');
       if (sc) { scene = sc.dataset.scene; $$('[data-scene]', el).forEach(b => b.classList.toggle('on', b === sc)); return; }
       if (t.closest('#lk-save')) {
@@ -561,8 +583,11 @@
         if (was && was.own && was.imageId && !(now && now.imageId === was.imageId)) API.deleteImage(was.imageId);
         dropUnused(now && now.imageId);
         const all = allScenes;
-        API.saveProject(p.id, { look, sceneBreak: scene });
-        p.look = look; p.sceneBreak = scene;
+        // her own scene-break picture: an older one that was replaced, and ones tried and not kept, go
+        if (p.sceneImg && p.sceneImg !== sceneImg) API.deleteImage(p.sceneImg);
+        sceneUps.filter(id => id !== sceneImg).forEach(id => API.deleteImage(id));
+        API.saveProject(p.id, { look, sceneBreak: scene, sceneImg });
+        p.look = look; p.sceneBreak = scene; p.sceneImg = sceneImg;
         lookPreview = null;
         closeSheet(true);
         paint();
@@ -724,7 +749,8 @@
     });
   }
   // a background photo she uploaded for this project is locked along with it
-  const bgPhotoIds = p => { const ph = Backdrop.norm((p.look || {}).bg).photo; return ph && ph.imageId ? [ph.imageId] : []; };
+  // (and so is her own scene-break picture)
+  const bgPhotoIds = p => { const ph = Backdrop.norm((p.look || {}).bg).photo; return [ph && ph.imageId, p.sceneImg].filter(Boolean); };
   async function lockProject(p) {
     if (!Vault.isSetUp()) { if (!(await setupSheet())) return; }
     else if (!Vault.isOpen() && !(await askPassSheet('Enter your passphrase'))) return;

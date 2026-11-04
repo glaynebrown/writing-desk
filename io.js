@@ -134,7 +134,8 @@ const IO = (() => {
   const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2));
 
   // Chapter HTML -> XHTML for the ebook (no highlights or notes).
-  function xhtmlBody(html, look) {
+  // pics: scene-break pictures put in the book ({ arrow: true, own: true })
+  function xhtmlBody(html, look, pics = {}) {
     look = Themes.norm(look);
     const d = document.createElement('div');
     d.innerHTML = Editor.clean(html, { plain: true });
@@ -142,7 +143,11 @@ const IO = (() => {
     const out = [];
     const ser = new XMLSerializer();
     for (const b of Array.from(d.children)) {
-      if (b.classList.contains('scene')) { out.push(`<p class="scene">${x(b.textContent)}</p>`); after = true; continue; }
+      if (b.classList.contains('scene')) {
+        const s = b.dataset.s;
+        out.push(pics[s] ? `<p class="scene"><img class="scene-pic" src="images/scene-${s}.png" alt="${x(b.textContent)}"/></p>` : `<p class="scene">${x(b.textContent)}</p>`);
+        after = true; continue;
+      }
       if (!b.textContent.trim()) { out.push('<p class="blank">&#160;</p>'); continue; }
       const drop = look.dropcap && !out.length;
       const cls = [['left', 'center', 'right'].find(k => b.classList.contains(k)) || '', drop || (after && look.indent === 'book') ? 'first' : ''].filter(Boolean).join(' ');
@@ -169,6 +174,7 @@ p.center { text-align: center; }
 p.right { text-align: right; }
 p.left { text-align: left; }
 p.scene { text-align: center; margin: 1.2em 0; letter-spacing: 0.2em; }
+img.scene-pic { height: 3em; max-width: 70%; }
 span.dropcap { float: left; font-size: 3.4em; line-height: 0.85; margin: 0.05em 0.08em 0 0; }
 h1.chapter { text-align: center; font-weight: normal; font-size: 1.6em; margin: 3em 0 2em; page-break-before: always; }
 .titlepage { text-align: center; margin-top: 30%; }
@@ -230,10 +236,18 @@ h1.chapter { text-align: center; font-weight: normal; font-size: 1.6em; margin: 
       manifest.push('<item id="titlepage" href="title.xhtml" media-type="application/xhtml+xml"/>');
       spine.push('<itemref idref="titlepage"/>');
     }
+    // scene-break pictures used in the book (black lines on see-through PNGs)
+    const pics = {};
+    for (const [id, data] of Object.entries(opts.scenePics || {})) {
+      if (!data || !chapters.some(c => (c.html || '').includes(`data-s="${id}"`))) continue;
+      O.file(`images/scene-${id}.png`, data.split(',')[1], { base64: true });
+      manifest.push(`<item id="scene-${id}" href="images/scene-${id}.png" media-type="image/png"/>`);
+      pics[id] = true;
+    }
     chapters.forEach((c, i) => {
       const n = String(i + 1).padStart(3, '0');
       const title = c.title || (chapters.length > 1 ? `Chapter ${i + 1}` : project.title);
-      O.file(`ch${n}.xhtml`, page(title, `<section epub:type="chapter">\n${c.title || chapters.length > 1 ? `<h1 class="chapter">${x(title)}</h1>\n` : ''}${xhtmlBody(c.html, project.look)}\n</section>`));
+      O.file(`ch${n}.xhtml`, page(title, `<section epub:type="chapter">\n${c.title || chapters.length > 1 ? `<h1 class="chapter">${x(title)}</h1>\n` : ''}${xhtmlBody(c.html, project.look, pics)}\n</section>`));
       manifest.push(`<item id="ch${n}" href="ch${n}.xhtml" media-type="application/xhtml+xml"/>`);
       spine.push(`<itemref idref="ch${n}"/>`);
       toc.push({ href: `ch${n}.xhtml`, title });
@@ -265,6 +279,7 @@ ${spine.join('\n')}
     return { blob, id };
   }
 
+  const fileAsDataUrl = url => fetch(url).then(r => r.blob()).then(b => new Promise(res => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = () => res(''); f.readAsDataURL(b); })).catch(() => '');
   async function exportEpub(ctx, project, chapters) {
     const settings = ctx.settings();
     const cover = project.coverId ? await ctx.api.getImage(project.coverId) : '';
@@ -289,7 +304,8 @@ ${spine.join('\n')}
       const label = b.innerHTML;
       b.textContent = 'Making your ebook…';
       try {
-        const { blob, id } = await buildEpub(project, chapters, { author, cover: $('#ex-cover') && $('#ex-cover').checked ? cover : '', fill, titlePage: $('#ex-title').checked });
+        const scenePics = { arrow: await fileAsDataUrl('scene-arrow.png'), own: project.sceneImg ? await ctx.api.getImage(project.sceneImg) : '' };
+        const { blob, id } = await buildEpub(project, chapters, { author, cover: $('#ex-cover') && $('#ex-cover').checked ? cover : '', fill, titlePage: $('#ex-title').checked, scenePics });
         if (!project.epubId) ctx.api.saveProject(project.id, { epubId: id });
         const name = (project.title || 'My book').replace(/[\\/:*?"<>|]+/g, '').trim() + '.epub';
         const file = new File([blob], name, { type: 'application/epub+zip' });

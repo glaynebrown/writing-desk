@@ -501,6 +501,28 @@ html[data-dropcap="1"] .chap-body > p:first-child::first-letter, .bcontent p.dro
 }
 .chap-body .scene { text-align: center; color: var(--accent); margin: 1.1em 0; letter-spacing: .25em; user-select: none; -webkit-user-select: none; cursor: pointer; border-radius: 8px; }
 .chap-body .scene:hover { background: var(--accent-wash); }
+/* picture scene breaks (editor.js SCENES pic): the drawing is a mask tinted in the text color;
+   the plain-text stand-in stays in the element (for copies) but is pushed out of sight */
+[data-s="arrow"] { --scene-img: url(scene-arrow.png); }
+[data-s="own"] { --scene-img: var(--own-scene, none); }
+.scene[data-s="arrow"], .scene[data-s="own"], .bscene[data-s="arrow"], .bscene[data-s="own"] {
+  position: relative; height: 4em; overflow: hidden; white-space: nowrap; text-indent: -9999px; letter-spacing: 0;
+}
+.chap-body .scene[data-s="arrow"], .chap-body .scene[data-s="own"] { color: var(--ink); }
+html[data-darkpage="1"] .chap-body .scene[data-s="arrow"], html[data-darkpage="1"] .chap-body .scene[data-s="own"] { color: var(--page-ink); }
+.scene[data-s="arrow"]::before, .scene[data-s="own"]::before, .bscene[data-s="arrow"]::before, .bscene[data-s="own"]::before {
+  content: ''; position: absolute; inset: .15em 0;
+}
+.scene[data-s="arrow"]::before, .scene[data-s="own"]::before, .bscene[data-s="arrow"]::before, .bscene[data-s="own"]::before, .scene-pic {
+  background: currentColor; -webkit-mask: var(--scene-img) center / contain no-repeat; mask: var(--scene-img) center / contain no-repeat;
+}
+.scene-pic { display: inline-block; vertical-align: middle; width: 100%; height: 26px; }
+.scene-mini .scene-pic { width: 38px; height: 16px; }
+.chap-end .scene-pic { width: 150px; height: 40px; }
+.ap-orn .scene-pic { width: 70px; height: 24px; }
+.scene-opt small { display: block; font: 600 11px 'Nunito Sans', sans-serif; color: var(--ink-faint); margin-top: 4px; letter-spacing: 0; }
+.scene-opt.add { display: flex; flex-direction: column; align-items: center; justify-content: center; border-style: dashed; color: var(--ink-soft); }
+.scene-opt.add .icon { width: 18px; height: 18px; }
 .chap-body .flash, .chap-body p.flash { animation: flash 1.4s ease; }
 @keyframes flash { 0%, 40% { background: var(--accent-soft); } 100% { background: transparent; } }
 .chap-end { text-align: center; color: var(--ink-faint); margin-top: 40px; letter-spacing: .25em; opacity: .55; }

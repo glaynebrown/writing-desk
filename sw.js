@@ -3,10 +3,10 @@
    otherwise lets the browser reuse a file for 10 minutes), so an upload shows up right away.
    Firebase SDK, fonts and helper libraries: saved copy first -- those never change.
    The writing itself is kept on the device by Firestore, not here. */
-const APP_CACHE = 'qc-app-v5';
+const APP_CACHE = 'qc-app-v6';
 const APP_FILES = [
   './', 'index.html', 'styles.css', 'themes.js', 'store.js', 'demo.js', 'ui.js', 'vault.js', 'editor.js', 'project.js', 'pages.js', 'io.js', 'lookup.js', 'lockin.js', 'research.js', 'goals.js', 'backdrop.js', 'worldmap.js', 'find.js', 'book.js', 'app.js',
-  'firebase-config.js', 'manifest.json', 'candle.webp', 'candle-mark.webp', 'icon-192.png', 'apple-touch-icon.png',
+  'firebase-config.js', 'manifest.json', 'candle.webp', 'candle-mark.webp', 'scene-arrow.png', 'icon-192.png', 'apple-touch-icon.png',
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
 ];
 const HOME = new URL('./', self.location).href;

@@ -158,6 +158,41 @@ const UI = (() => {
     }
     throw new Error('That photo is too big — try a smaller one.');
   }
+  // A drawing for a scene break -> { data (PNG data URL), w, h }: the lines only, on a see-through
+  // background (light parts fade out), trimmed to the drawing. It's shown as a mask, tinted in the
+  // text color, so only how dark each spot is matters.
+  async function prepLineArt(src, max = 900) {
+    if (src instanceof Blob) src = await readFile(src);
+    const img = await loadImg(src);
+    let w = img.naturalWidth || 600, h = img.naturalHeight || 200;
+    const scale = Math.min(1, max / Math.max(w, h));
+    w = Math.max(1, Math.round(w * scale)); h = Math.max(1, Math.round(h * scale));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const x = c.getContext('2d', { willReadFrequently: true });
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(img, 0, 0, w, h);
+    const px = x.getImageData(0, 0, w, h), d = px.data;
+    const LO = 40, HI = 225; // darker than LO = solid line, lighter than HI = background
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let i = 0; i < d.length; i += 4) {
+      const L = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      const a = Math.round(d[i + 3] * Math.max(0, Math.min(1, (HI - L) / (HI - LO))));
+      d[i] = d[i + 1] = d[i + 2] = 0;
+      d[i + 3] = a;
+      if (a > 10) { const p = i / 4, px_ = p % w, py = (p - px_) / w; if (px_ < x0) x0 = px_; if (px_ > x1) x1 = px_; if (py < y0) y0 = py; if (py > y1) y1 = py; }
+    }
+    if (x1 < 0) throw new Error('That picture looks blank — try one with darker lines.');
+    x.putImageData(px, 0, 0);
+    const pad = 4;
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+    const out = document.createElement('canvas');
+    out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+    out.getContext('2d').drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+    const data = out.toDataURL('image/png');
+    if (data.length > 700000) return prepLineArt(src, Math.round(max * 0.7));
+    return { data, w: out.width, h: out.height };
+  }
   // many = true -> an array of files
   function pickFile(accept, many) {
     return new Promise(res => {
@@ -261,5 +296,5 @@ const UI = (() => {
     });
   }
 
-  return { $, $$, esc, icon, ls, num, wordsIn, plural, narrow, dayKey, ago, toast, oops, ask, sheet, closeSheet, sheetOpen, popover, closePopover, prepPhoto, pickFile, sortable, numWord, loadScript };
+  return { $, $$, esc, icon, ls, num, wordsIn, plural, narrow, dayKey, ago, toast, oops, ask, sheet, closeSheet, sheetOpen, popover, closePopover, prepPhoto, prepLineArt, pickFile, sortable, numWord, loadScript };
 })();

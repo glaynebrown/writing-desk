@@ -30,8 +30,23 @@ const Editor = (() => {
     { id: 'hearts', t: '♡ ♡ ♡' },
     { id: 'flower', t: '✿' },
     { id: 'tilde', t: '~ ⁕ ~' },
+    // pictures (line art, tinted in the ink color by styles.css); t is the plain-text stand-in
+    { id: 'arrow', t: '* * *', pic: true },
+    { id: 'own', t: '* * *', pic: true }, // the project's own uploaded picture (project.sceneImg)
   ];
   const sceneOf = id => SCENES.find(s => s.id === id) || SCENES[0];
+  // what a scene-break choice looks like on a button or in the chapter end mark
+  const sceneTile = id => { const s = sceneOf(id); return s.pic ? `<span class="scene-pic" data-s="${s.id}"></span>` : esc(s.t); };
+  // The project's own picture is shown through one CSS variable (--own-scene) on the page.
+  let ownFor = null;
+  function ownScene(project, api) {
+    const id = (project && project.sceneImg) || '';
+    if (id === ownFor) return;
+    ownFor = id;
+    const st = document.documentElement.style;
+    if (!id) return st.removeProperty('--own-scene');
+    (api || (P && P.ctx.api)).getImage(id).then(src => { if (ownFor === id && src) st.setProperty('--own-scene', `url("${src}")`); });
+  }
   const HL = [
     { id: 'y', name: 'Yellow' }, { id: 'p', name: 'Pink' }, { id: 'g', name: 'Green' }, { id: 'b', name: 'Blue' }, { id: 'v', name: 'Purple' },
   ];
@@ -152,6 +167,7 @@ const Editor = (() => {
       chapters: [], byId: {}, state: {}, // state[cid] = { dirty, timer, lastHtml }
       unsub: null, pending: false, current: null, totalT: null, notesOpen: false, focus: false,
     };
+    ownScene(project, ctx.api);
     root.innerHTML = shell(project);
     bind();
     P.unsub = ctx.api.watchChapters(project.id, gotChapters);
@@ -303,7 +319,7 @@ const Editor = (() => {
     sec.dataset.cid = c.id;
     sec.innerHTML = `<input class="chap-title" type="text" spellcheck="true" placeholder="${P.project.kind === 'short' ? 'Add a chapter title (optional)' : 'Chapter title'}" value="${esc(c.title || '')}">
       <div class="chap-body" contenteditable="true" spellcheck="true" autocapitalize="sentences"></div>
-      <div class="chap-end"><span>${esc(sceneOf(P.project.sceneBreak).t)}</span></div>
+      <div class="chap-end"><span>${sceneTile(P.project.sceneBreak)}</span></div>
       <div class="pcards" aria-hidden="true"></div>`;
     fill(sec.querySelector('.chap-body'), c.html);
     P.state[c.id] = { dirty: false, lastHtml: c.html || '', titleDirty: false };
@@ -876,7 +892,7 @@ const Editor = (() => {
     d.textContent = s.t;
     return d;
   }
-  function sceneMini() { const m = $('#scene-mini'); if (m && P) m.textContent = sceneOf(P.project.sceneBreak).t; }
+  function sceneMini() { const m = $('#scene-mini'); if (m && P) m.innerHTML = sceneTile(P.project.sceneBreak); }
   function insertScene(id) {
     const body = needBody();
     if (!body) return;
@@ -903,8 +919,9 @@ const Editor = (() => {
   }
   // usualFirst: the project's usual design goes first (the insert menu)
   const sceneGrid = (cur, usualFirst) => {
-    const list = usualFirst ? [sceneOf(cur), ...SCENES.filter(s => s.id !== sceneOf(cur).id)] : SCENES;
-    return `<div class="scene-grid">${list.map(s => `<button class="scene-opt ${s.id === cur ? 'on' : ''}" data-pick="${s.id}"><span>${esc(s.t)}</span></button>`).join('')}</div>`;
+    const all = SCENES.filter(s => s.id !== 'own' || (P && P.project.sceneImg));
+    const list = usualFirst ? [sceneOf(cur), ...all.filter(s => s.id !== sceneOf(cur).id)] : all;
+    return `<div class="scene-grid">${list.map(s => `<button class="scene-opt ${s.id === cur ? 'on' : ''}" data-pick="${s.id}"><span>${sceneTile(s.id)}</span></button>`).join('')}</div>`;
   };
   function pickScene(btn) {
     if (!activeBody()) return toast('Tap into your writing where the break should go.');
@@ -1488,8 +1505,9 @@ const Editor = (() => {
   function refreshLook(project) {
     if (!P) return;
     P.project = project;
+    ownScene(project);
     sceneMini();
-    $$('.chap-end span').forEach(s => { s.textContent = sceneOf(project.sceneBreak).t; });
+    $$('.chap-end span').forEach(s => { s.innerHTML = sceneTile(project.sceneBreak); });
     setTimeout(() => { if (!P) return; setMode(); paginateAll(); layoutNotes(); }, 120);
   }
   // Change every scene break in the project to one design (from the Look sheet).
@@ -1514,7 +1532,7 @@ const Editor = (() => {
   }
 
   return {
-    SCENES, sceneOf, clean, countWords, textOf, open, close, isOpen, update, refreshLook, setAllScenes, scenesIn,
+    SCENES, sceneOf, sceneTile, ownScene, clean, countWords, textOf, open, close, isOpen, update, refreshLook, setAllScenes, scenesIn,
     liveChapters, deleteCurrentChapter, flushAll, lockFocus, historySheet, deletedSheet, current: () => P && P.current,
     // for find & replace (find.js)
     bodies: () => (P ? P.chapters.map(c => ({ cid: c.id, body: bodyOf(c.id) })).filter(x => x.body) : []),
