@@ -175,16 +175,24 @@ const Backdrop = (() => {
   })();
 
   // ---------- the speaker button (sound for the video, off every time it starts) ----------
+  // It sits in the project's top bar, before the goal flame, only while a video is playing.
+  // Each project tab draws its own top bar, so it's moved into whichever one is showing.
   const Sound = (() => {
     let btn = null;
+    function place() {
+      if (!btn || btn.hidden) return;
+      const host = document.querySelector('.ptop .pbtns');
+      if (host && btn.parentNode !== host) host.prepend(btn);
+    }
     const vol = () => Number(UI.ls.get('qc-vol', '40')) || 40;
     function ensureBtn() {
       if (btn) return;
       btn = document.createElement('button');
-      btn.className = 'bd-sound';
+      btn.className = 'pbtn icon-only bd-sound';
       btn.hidden = true;
       btn.title = 'Sound for the background video';
-      document.body.appendChild(btn);
+      btn.setAttribute('aria-label', 'Sound for the background video');
+      new MutationObserver(place).observe(document.getElementById('view'), { childList: true, subtree: true });
       btn.addEventListener('click', () => {
         const p = Video.player;
         if (!p) return;
@@ -212,7 +220,7 @@ const Backdrop = (() => {
     function ready(yes) {
       ensureBtn();
       btn.hidden = !yes;
-      if (yes) paint(); else UI.closePopover();
+      if (yes) { paint(); place(); } else { UI.closePopover(); btn.remove(); }
     }
     return { ready };
   })();

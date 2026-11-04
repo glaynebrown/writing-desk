@@ -712,11 +712,8 @@ body:not(.bg-photo) .bd-img { display: none; }
 .bd-video.playing { opacity: 1; }
 .bd-video iframe { width: 960px; height: 540px; border: 0; display: block; pointer-events: none; }
 body.bg-soft .bd-video.playing { opacity: .22; }
-.bd-sound { position: fixed; z-index: 44; left: max(16px, env(safe-area-inset-left)); bottom: calc(16px + env(safe-area-inset-bottom)); width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: var(--ink-soft); cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(40, 25, 10, .15); }
-.bd-sound[hidden] { display: none; }
+.bd-sound[hidden] { display: none; } /* (in the project's top bar, backdrop.js) */
 .bd-sound.on { color: var(--accent-deep); }
-.bd-sound .icon { width: 19px; height: 19px; }
-body:not(.in-project) .bd-sound { display: none; }
 .bd-vol { display: flex; align-items: center; gap: 8px; margin: 10px 4px 2px; color: var(--ink-soft); }
 .bd-vol input { flex: 1; accent-color: var(--accent); }
 .bd-vol .icon { width: 17px; height: 17px; }
