@@ -252,8 +252,6 @@ const Editor = (() => {
         </div>
       </header>
       <div class="tools-bar" id="tools-bar"><div class="tools" id="tools">
-        <button class="tb read-btn" data-act="read" title="Read it as a book — real pages you turn" aria-label="Read as a book">${icon('read')}</button>
-        <span class="tsep read-sep"></span>
         ${tb('undo', icon('undo'), 'Undo (⌘Z)')}${tb('redo', icon('redo'), 'Redo (⇧⌘Z)')}
         <span class="tsep"></span>
         ${tb('bold', '<b>B</b>', 'Bold (⌘B)')}${tb('italic', '<i>I</i>', 'Italic (⌘I)')}${tb('underline', '<u>U</u>', 'Underline (⌘U)')}
@@ -269,6 +267,7 @@ const Editor = (() => {
         <span class="tsep"></span>
         ${tb('pages', icon('pages'), 'Pages — see it as a printed book')}
         ${tb('focus', icon('focus'), 'Focus mode', 'hide-narrow')}
+        <button class="tb read-btn" data-act="read" title="Read it as a book — real pages you turn" aria-label="Read as a book">${icon('read')}</button>
         ${tb('lockin', icon('hourglass'), 'Lock in — 30 minutes or an hour of just writing')}
       </div></div>
       <button class="focus-exit" data-act="focus">${icon('x')} Leave focus</button>

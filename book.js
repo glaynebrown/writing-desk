@@ -146,12 +146,12 @@ const Book = (() => {
       const [al, ar] = pagesOf(B, a), [bl, br] = pagesOf(B, b);
       // Next: the right page lifts and lands on the left. Back: the left page lifts and lands on the right.
       base.append(face(dir === 'next' ? al : bl, '', 'left'), face(dir === 'next' ? br : ar, '', 'right'));
-      sheet.append(face(dir === 'next' ? ar : al, 'front'), face(dir === 'next' ? bl : br, 'back'));
+      sheet.append(face(dir === 'next' ? ar : al, 'front'), face(dir === 'next' ? bl : br, 'bk-back'));
     } else {
       // Next: this page lifts off its left edge and turns away. Back: the page before swings back over it.
       base.append(face(dir === 'next' ? b : a));
       sheet.append(face(dir === 'next' ? a : b, 'front'));
-      const back = document.createElement('div'); back.className = 'bk-page bk-face back blank'; sheet.appendChild(back);
+      const back = document.createElement('div'); back.className = 'bk-page bk-face bk-back blank'; sheet.appendChild(back);
     }
     layer.append(base, sheet);
     st.appendChild(layer);
@@ -167,7 +167,7 @@ const Book = (() => {
     const angle = q => (B.two ? (dir === 'next' ? -180 * q : 180 * q) : (dir === 'next' ? -95 * q : -95 * (1 - q)));
     // The front and back swap by hand at exactly 90° (Safari can show the front mirrored past halfway);
     // the hidden side stays nearly see-through rather than hidden, so iPhones keep it drawn.
-    const front = sheet.querySelector('.front'), back = sheet.querySelector('.back');
+    const front = sheet.querySelector('.front'), back = sheet.querySelector('.bk-back');
     const set = q => {
       p = Math.max(0, Math.min(1, q));
       const ang = angle(p), past = Math.abs(ang) >= 90;

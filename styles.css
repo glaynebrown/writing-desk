@@ -812,7 +812,7 @@ html[data-texture="walnut"] .bk-page .bpage { background-image: radial-gradient(
 .bk-flip:not(.two) .bk-base .bk-face { position: absolute; inset: 0; }
 .bk-sheet { transform-style: preserve-3d; -webkit-transform-style: preserve-3d; will-change: transform; }
 .bk-sheet .bk-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; transform-style: flat; -webkit-transform-style: flat; }
-.bk-sheet .back { transform: rotateY(180deg); }
+.bk-sheet .bk-back { transform: rotateY(180deg); } /* (not .back: that's the round back button's style) */
 .bk-face.blank { background-color: var(--page-paper, var(--paper)); box-shadow: none; }
 .bk-flip:not(.two) .bk-sheet { transform-origin: left center; }
 .bk-flip.two .bk-sheet.next { left: 50%; transform-origin: left center; }
@@ -820,7 +820,7 @@ html[data-texture="walnut"] .bk-page .bpage { background-image: radial-gradient(
 /* shading: the lifting page darkens a little, and a soft shadow falls on the page underneath */
 .bk-sheet .bk-face::before { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: calc(var(--p, 0) * .9); background: linear-gradient(to left, rgba(40, 25, 10, .24), rgba(40, 25, 10, 0) 60%); }
 .bk-sheet.prev .bk-face::before { background: linear-gradient(to right, rgba(40, 25, 10, .24), rgba(40, 25, 10, 0) 60%); }
-.bk-sheet .back::before { opacity: calc((1 - var(--p, 0)) * .9); }
+.bk-sheet .bk-back::before { opacity: calc((1 - var(--p, 0)) * .9); }
 .bk-sheet { box-shadow: 0 0 calc(var(--p, 0) * 30px) rgba(40, 25, 10, .2); }
 
 /* find and replace (find.js) */
