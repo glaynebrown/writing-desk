@@ -1461,7 +1461,7 @@ const Editor = (() => {
   const versionsOf = async () => (await P.ctx.api.listCol('versions', P.pid)).filter(v => (v.at || 0) >= cutoff());
 
   // ⋯ → Earlier versions of this chapter
-  async function historySheet() {
+  async function historySheet(back) {
     flushAll();
     const c = P.byId[P.current] || P.chapters[0];
     if (!c) return;
@@ -1472,7 +1472,7 @@ const Editor = (() => {
         <div class="hist-list">${list.map(v => `<button class="hist-row ${v === pick ? 'on' : ''}" data-v="${v.id}"><b>${esc(when(v.at))}</b><small>${plural(v.words || 0, 'word')}${v.manual ? ' · saved before a change' : ''}</small></button>`).join('')}</div>
         <div class="hist-view" id="hist-view"></div></div>
         <div class="row end"><button class="btn quiet" data-act="close">Close</button><button class="btn" id="hist-go">${icon('undo')} Bring this version back</button></div>`
-        : `<div class="empty"><p>No earlier versions of this chapter yet.</p></div>`}`, { cls: 'wide' });
+        : `<div class="empty"><p>No earlier versions of this chapter yet.</p></div>`}`, { cls: 'wide', back });
     const show = () => { const vw = $('#hist-view'); if (vw && pick) { vw.innerHTML = clean(pick.html); vw.scrollTop = 0; } };
     show();
     el.addEventListener('click', async e => {
@@ -1497,12 +1497,12 @@ const Editor = (() => {
     jumpTo(cid);
   }
   // ⋯ → Deleted chapters
-  async function deletedSheet() {
+  async function deletedSheet(back) {
     flushAll();
     const list = (await versionsOf()).filter(v => v.deleted).sort((a, b) => b.at - a.at);
     const el = sheet(`<h2>Deleted chapters</h2><p class="muted">Chapters you deleted in the last ${KEEP_DAYS} days.</p>
       ${list.length ? `<div class="hist-list solo">${list.map(v => `<div class="hist-row static"><span><b>${esc(v.title || 'Untitled chapter')}</b><small>${plural(v.words || 0, 'word')} · deleted ${esc(when(v.at))}</small></span><button class="btn quiet small" data-back="${v.id}">${icon('undo')} Bring back</button></div>`).join('')}</div>`
-        : `<div class="empty"><p>Nothing deleted lately.</p></div>`}`, { cls: 'small' });
+        : `<div class="empty"><p>Nothing deleted lately.</p></div>`}`, { cls: 'small', back });
     el.addEventListener('click', e => {
       const b = e.target.closest('[data-back]');
       if (!b) return;

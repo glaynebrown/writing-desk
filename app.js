@@ -282,8 +282,10 @@
   }
 
   // ---------- project menu ----------
-  function projectMenu(p) {
+  function projectMenu(p, start) {
     const writing = Editor.isOpen(p.id);
+    // what opens from here gets a "‹ back" link to this menu (or to History & deleting)
+    const backTo = where => ({ label: where === 'hist' ? 'History & deleting' : p.title || 'Untitled', go: () => projectMenu(p, where) });
     const main = () => `<h2>${esc(p.title || 'Untitled')}</h2>
       <div class="menu">
         <button data-m="details">${icon('book')}<span><b>Details &amp; cover</b><small>Title, kind, page size, cover from Canva</small></span></button>
@@ -303,7 +305,7 @@
         ${writing ? `<button data-m="delch">${icon('trash')}<span><b>Delete this chapter</b><small>The one your cursor is in</small></span></button>` : ''}
         <button data-m="delete" class="danger">${icon('trash')}<span><b>Delete project</b><small>Everything in it, for good</small></span></button>
       </div>`;
-    const el = sheet(`<div id="pm-body">${main()}</div>`, { cls: 'small' });
+    const el = sheet(`<div id="pm-body">${start === 'hist' ? hist() : main()}</div>`, { cls: 'small' });
     const show = html => { const b = $('#pm-body'); b.innerHTML = html; b.classList.remove('ap-in', 'ap-out'); void b.offsetWidth; b.classList.add(html === hist() ? 'ap-in' : 'ap-out'); };
     el.addEventListener('click', async e => {
       const b = e.target.closest('[data-m]');
@@ -312,21 +314,21 @@
       if (m === 'hist') return show(hist());
       if (m === 'main') return show(main());
       closeSheet(true);
-      if (m === 'details') detailsSheet(p);
-      if (m === 'look') lookSheet(p);
+      if (m === 'details') detailsSheet(p, backTo('main'));
+      if (m === 'look') lookSheet(p, backTo('main'));
       if (m === 'import') IO.importWord(ctx, p);
       if (m === 'export') {
         if (p.locked && !(await ask('Export a locked project?', 'The ebook file itself is <b>not</b> locked — anyone with the file (or your Kindle) can read it.', 'Export anyway'))) return;
-        IO.exportEpub(ctx, p, Editor.isOpen(p.id) ? Editor.liveChapters() : await LAPI.chaptersOf(p.id));
+        IO.exportEpub(ctx, p, Editor.isOpen(p.id) ? Editor.liveChapters() : await LAPI.chaptersOf(p.id), backTo('main'));
       }
       if (m === 'lock') lockProject(p);
       if (m === 'unlockgood') unlockForGood(p);
       if (m === 'delch') Editor.deleteCurrentChapter();
-      if (m === 'history') Editor.historySheet();
+      if (m === 'history') Editor.historySheet(backTo('hist'));
       if (m === 'deleted') {
         // (deleted chapters come back into the writing page, so open it first when on another tab)
-        if (Editor.isOpen(p.id)) Editor.deletedSheet();
-        else { go('#/p/' + p.id); setTimeout(() => Editor.isOpen(p.id) && Editor.deletedSheet(), 600); }
+        if (Editor.isOpen(p.id)) Editor.deletedSheet(backTo('hist'));
+        else { go('#/p/' + p.id); setTimeout(() => Editor.isOpen(p.id) && Editor.deletedSheet(backTo('hist')), 600); }
       }
       if (m === 'delete') {
         const typed = await ask(`Delete “${p.title}”?`, `All ${plural(p.words || 0, 'word')}, every chapter and its notes will be gone for good. Type <b>delete</b> to be sure.`, 'Delete forever', { danger: true, input: '', placeholder: 'delete' });
@@ -342,7 +344,7 @@
 
   // ---------- details & cover ----------
   const SIZES = [{ w: 6, h: 9, name: '6 × 9', note: 'standard paperback' }, { w: 5.5, h: 8.5, name: '5.5 × 8.5', note: 'digest' }, { w: 5, h: 8, name: '5 × 8', note: 'small paperback' }, { w: 4.25, h: 6.87, name: '4.25 × 6.87', note: 'pocket' }];
-  function detailsSheet(p) {
+  function detailsSheet(p, back) {
     let kind = p.kind || 'book';
     let size = pageOf(p);
     let coverId = p.coverId || '';
@@ -366,7 +368,10 @@
           <div class="field"><label>Page size <small>(for Pages and the cover)</small></label><div class="sizes" id="dt-size">${SIZES.map(s => `<button data-w="${s.w}" data-h="${s.h}" class="${size.w === s.w && size.h === s.h ? 'on' : ''}"><b>${s.name}</b><small>${s.note}</small></button>`).join('')}</div></div>
         </div>
       </div>
-      <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="dt-save">Save</button></div>`, { cls: 'wide' });
+      <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="dt-save">Save</button></div>`, { cls: 'wide', back: back && { ...back, dirty: () => fields() !== startFields } });
+    // (for "Leave without saving?" on the back link)
+    const fields = () => JSON.stringify([$('#dt-title') && $('#dt-title').value, kind, size, $('#dt-pin') && $('#dt-pin').value, $('#dt-canva') && $('#dt-canva').value, $('#dt-extras') ? $('#dt-extras').checked : null, !!newCover, dropCover]);
+    const startFields = fields();
     fillImages(el);
     el.addEventListener('click', async e => {
       const k = e.target.closest('#dt-kind button');
@@ -406,7 +411,7 @@
   }
 
   // ---------- look ----------
-  function lookSheet(p) {
+  function lookSheet(p, back) {
     const start = Themes.norm(p.look);
     let look = JSON.parse(JSON.stringify(start));
     let scene = p.sceneBreak || 'fleuron';
@@ -499,15 +504,16 @@
     const el = sheet(`<div id="lk-head">${head()}</div><div id="lk-body">${draw()}</div>
       <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="lk-save">Save</button></div>`, {
       cls: 'wide look-sheet',
+      back: back && { ...back, dirty: () => !saved && (JSON.stringify(look) !== JSON.stringify(start) || scene !== (p.sceneBreak || 'fleuron') || sceneImg !== (p.sceneImg || '') || allScenes) },
       onClose: () => {
         lookPreview = null; paint(); Editor.relayout();
         if (!saved) { dropUnused(null); sceneUps.forEach(id => API.deleteImage(id)); Editor.ownScene(p, LAPI); }
       },
     });
     fillBg(el);
-    const redraw = () => { const open = $('details.custom', el) && $('details.custom', el).open; const y = el.scrollTop; $('#lk-head').innerHTML = head(); $('#lk-body').innerHTML = draw(); if (open) $('details.custom', el).open = true; el.scrollTop = y; fillBg(el); tryOn(); };
+    const redraw = () => { el.classList.toggle('in-page', !!pg); const open = $('details.custom', el) && $('details.custom', el).open; const y = el.scrollTop; $('#lk-head').innerHTML = head(); $('#lk-body').innerHTML = draw(); if (open) $('details.custom', el).open = true; el.scrollTop = y; fillBg(el); tryOn(); };
     // open one option (or go back to the list): slides in, from the top
-    const go = to => { pg = to; $('#lk-head').innerHTML = head(); $('#lk-body').innerHTML = draw(); fillBg(el); el.scrollTop = 0; const b = $('#lk-body'); b.classList.remove('ap-in', 'ap-out'); void b.offsetWidth; b.classList.add(to ? 'ap-in' : 'ap-out'); };
+    const go = to => { pg = to; el.classList.toggle('in-page', !!pg); $('#lk-head').innerHTML = head(); $('#lk-body').innerHTML = draw(); fillBg(el); el.scrollTop = 0; const b = $('#lk-body'); b.classList.remove('ap-in', 'ap-out'); void b.offsetWidth; b.classList.add(to ? 'ap-in' : 'ap-out'); };
     el.addEventListener('click', async e => {
       const t = e.target;
       const pgb = t.closest('[data-pg]');

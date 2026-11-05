@@ -71,7 +71,10 @@ const UI = (() => {
     const wrap = $('#sheet-wrap'), old = $('#sheet'), el = old.cloneNode(false);
     old.replaceWith(el);
     el.className = 'sheet ' + (opts.cls || '');
-    el.innerHTML = `<button class="sheet-x" data-act="close" aria-label="Close">${icon('x')}</button>${html}`;
+    // opts.back = { label, go, dirty }: a "‹ label" link at the top that goes back where the sheet was
+    // opened from (the project's ⋯ menu); with unsaved changes (dirty()) it asks first
+    const back = opts.back ? `<button class="ap-back sheet-back" data-act="sheet-back">${icon('back')} ${esc(opts.back.label)}</button>` : '';
+    el.innerHTML = `<button class="sheet-x" data-act="close" aria-label="Close">${icon('x')}</button>${back}${html}`;
     wrap.hidden = false;
     document.body.classList.add('sheet-open');
     requestAnimationFrame(() => wrap.classList.add('show'));
@@ -79,7 +82,14 @@ const UI = (() => {
     const onKey = e => { if (e.key === 'Escape' && $('#dialog-wrap').hidden) closeSheet(); };
     document.addEventListener('keydown', onKey);
     wrap._key = onKey;
-    wrap.onclick = e => { if (e.target.closest('[data-act="close"]')) closeSheet(); };
+    wrap.onclick = async e => {
+      if (e.target.closest('[data-act="close"]')) closeSheet();
+      if (e.target.closest('[data-act="sheet-back"]') && opts.back) {
+        if (opts.back.dirty && opts.back.dirty() && !(await ask('Leave without saving?', 'The changes you made here won’t be kept.', 'Leave without saving', { cancelLabel: 'Keep editing' }))) return;
+        closeSheet();
+        opts.back.go();
+      }
+    };
     const first = el.querySelector('[autofocus]');
     if (first && !narrow()) setTimeout(() => first.focus(), 60);
     return el;

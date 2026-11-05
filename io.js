@@ -280,7 +280,7 @@ ${spine.join('\n')}
   }
 
   const fileAsDataUrl = url => fetch(url).then(r => r.blob()).then(b => new Promise(res => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = () => res(''); f.readAsDataURL(b); })).catch(() => '');
-  async function exportEpub(ctx, project, chapters) {
+  async function exportEpub(ctx, project, chapters, back) {
     const settings = ctx.settings();
     const cover = project.coverId ? await ctx.api.getImage(project.coverId) : '';
     const canShare = !!(navigator.canShare && navigator.share);
@@ -291,7 +291,7 @@ ${spine.join('\n')}
         <label class="check sub" id="ex-fill-row"><input type="checkbox" id="ex-fill" ${settings.kindleFill ? 'checked' : ''}> Fill my Paperwhite screen <small class="muted">— adds soft side bands in your cover’s colors; nothing is cut</small></label>` : ''}
       <label class="check"><input type="checkbox" id="ex-title" checked> Include a title page</label>
       <div class="howto">${icon('kindle')}<div><b>Getting it onto your Kindle</b><br>Open the <b>Send to Kindle</b> app on your Mac (drag the file in) or on your iPhone (share the file to the Kindle app), or email it to your Kindle’s address.</div></div>
-      <div class="row end"><button class="btn quiet" data-act="close">Cancel</button>${canShare ? `<button class="btn quiet" id="ex-share">${icon('share')} Share…</button>` : ''}<button class="btn" id="ex-dl">${icon('download')} Save EPUB</button></div>`);
+      <div class="row end"><button class="btn quiet" data-act="close">Cancel</button>${canShare ? `<button class="btn quiet" id="ex-share">${icon('share')} Share…</button>` : ''}<button class="btn" id="ex-dl">${icon('download')} Save EPUB</button></div>`, { back });
     if ($('#ex-cover')) $('#ex-cover').onchange = () => { $('#ex-fill').disabled = !$('#ex-cover').checked; $('#ex-fill-row').classList.toggle('off', !$('#ex-cover').checked); };
     el.addEventListener('click', async e => {
       const b = e.target.closest('#ex-dl, #ex-share');
