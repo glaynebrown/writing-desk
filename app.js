@@ -423,7 +423,6 @@
     const COLOR_NAMES = [['bg', 'Background'], ['paper', 'Page'], ['ink', 'Text'], ['accent', 'Accent'], ['spine', 'Book spine']];
     // The pop-up is a short list (what's chosen now); tapping a row slides in its choices.
     let pg = '';           // '' = the list, or which option is open
-    let allScenes = false; // also change the scene breaks already in the book
     const PAGES = { colors: 'Colors', title: 'Title font', body: 'Writing font', para: 'Paragraphs', paper: 'Paper', bg: 'Background', scene: 'Scene breaks' };
     const nameOf = (list, id) => (list.find(x => x.id === id) || list[0]);
     const listHtml = () => {
@@ -466,7 +465,7 @@
           ? `<button class="scene-opt add" data-sceneup>${icon('plus')}<small>Your own picture</small></button>`
           : `<button class="scene-opt ${x.id === scene ? 'on' : ''}" data-scene="${x.id}"><span>${Editor.sceneTile(x.id)}</span>${x.id === 'own' ? '<small>Your picture</small>' : ''}</button>`).join('')}</div>
         ${sceneImg ? `<p class="hint">Your picture: <button class="link" data-sceneup>Use a different picture</button></p>` : `<p class="hint">Your own picture: a drawing or ornament on a white or see-through background works best. It’s shown in your text color.</p>`}
-        <label class="check"><input type="checkbox" id="lk-all" ${allScenes ? 'checked' : ''}> Change the scene breaks I already have to this design too</label>`;
+        <p class="hint">Changing it updates the breaks already in the book — except any you changed one at a time by clicking them on the page.</p>`;
       return '';
     };
     const draw = () => (pg ? `<div class="ap-page">${pageHtml()}</div>` : listHtml());
@@ -504,7 +503,7 @@
     const el = sheet(`<div id="lk-head">${head()}</div><div id="lk-body">${draw()}</div>
       <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="lk-save">Save</button></div>`, {
       cls: 'wide look-sheet',
-      back: back && { ...back, dirty: () => !saved && (JSON.stringify(look) !== JSON.stringify(start) || scene !== (p.sceneBreak || 'fleuron') || sceneImg !== (p.sceneImg || '') || allScenes) },
+      back: back && { ...back, dirty: () => !saved && (JSON.stringify(look) !== JSON.stringify(start) || scene !== (p.sceneBreak || 'fleuron') || sceneImg !== (p.sceneImg || '')) },
       onClose: () => {
         lookPreview = null; paint(); Editor.relayout();
         if (!saved) { dropUnused(null); sceneUps.forEach(id => API.deleteImage(id)); Editor.ownScene(p, LAPI); }
@@ -518,7 +517,6 @@
       const t = e.target;
       const pgb = t.closest('[data-pg]');
       if (pgb) return go(pgb.dataset.pg);
-      if (t.id === 'lk-all') { allScenes = t.checked; return; }
       const bs = t.closest('[data-bgs]');
       if (bs) { setBg({ style: bs.dataset.bgs }); if (bs.dataset.bgs !== 'none' && !bgNow().photo) setBg({ photo: { starter: Backdrop.STARTERS[0].id } }); return redraw(); }
       const bp = t.closest('[data-bgp]');
@@ -588,7 +586,7 @@
         const was = Backdrop.norm(JSON.parse(startBg)).photo, now = bgNow().photo;
         if (was && was.own && was.imageId && !(now && now.imageId === was.imageId)) API.deleteImage(was.imageId);
         dropUnused(now && now.imageId);
-        const all = allScenes;
+        const oldScene = p.sceneBreak || 'fleuron';
         // her own scene-break picture: an older one that was replaced, and ones tried and not kept, go
         if (p.sceneImg && p.sceneImg !== sceneImg) API.deleteImage(p.sceneImg);
         sceneUps.filter(id => id !== sceneImg).forEach(id => API.deleteImage(id));
@@ -598,7 +596,10 @@
         closeSheet(true);
         paint();
         Editor.refreshLook(p);
-        if (all) Editor.setAllScenes(scene);
+        if (scene !== oldScene) {
+          if (Editor.isOpen(p.id)) Editor.setAllScenes(scene, oldScene);
+          else LAPI.chaptersOf(p.id).then(list => list.forEach(c => { const html = Editor.scenesIn(c.html, scene, oldScene); if (html) LAPI.saveChapter(c.id, { html }); })).catch(oops);
+        }
         toast('Appearance saved');
       }
     });

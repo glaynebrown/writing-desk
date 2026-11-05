@@ -758,6 +758,9 @@ body.bg-soft .bd-dim { display: none; }
 /* the bars and chapter list float over the photo, frosted */
 body.bg-photo .tools-bar { background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 body.bg-photo:not(.bg-soft) .side { background: color-mix(in srgb, var(--bg) 42%, transparent); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+/* over a photo: no divider line (it showed as a white edge), and the chapter numbers + word counts a step darker so the photo doesn't swallow them */
+body.bg-photo .side { border-right-color: transparent; }
+body.bg-photo .chn, body.bg-photo .chw { color: var(--ink-soft); }
 body.bg-bare .side { background: color-mix(in srgb, var(--bg) 62%, transparent); }
 /* the other project tabs (Characters, Board, Map…): their content sits on one panel down
    the middle, with the photo on both sides, like the writing page */

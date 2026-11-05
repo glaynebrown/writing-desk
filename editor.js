@@ -257,7 +257,7 @@ const Editor = (() => {
         ${tb('bold', '<b>B</b>', 'Bold (⌘B)')}${tb('italic', '<i>I</i>', 'Italic (⌘I)')}${tb('underline', '<u>U</u>', 'Underline (⌘U)')}
         <button class="tb" data-act="align" id="align-btn" title="Line alignment" aria-label="Line alignment">${icon('align-justify')}</button>
         <span class="tsep"></span>
-        ${tb('scene', '<span class="scene-mini" id="scene-mini"></span>', 'Insert a scene break')}
+        ${tb('scene', '<span class="scene-mini" id="scene-mini"></span>', 'Insert a scene break (change the design in Appearance — or click one break on the page to change just that one)')}
         ${tb('highlight', icon('marker'), 'Highlight')}
         ${tb('note', icon('note'), 'Margin note — select words to attach it to them, or just put the cursor on a line', 'hide-narrow')}
         <span class="tsep"></span>
@@ -1031,9 +1031,11 @@ const Editor = (() => {
     const list = usualFirst ? [sceneOf(cur), ...all.filter(s => s.id !== sceneOf(cur).id)] : all;
     return `<div class="scene-grid">${list.map(s => `<button class="scene-opt ${s.id === cur ? 'on' : ''}" data-pick="${s.id}"><span>${sceneTile(s.id)}</span></button>`).join('')}</div>`;
   };
-  function pickScene(btn) {
+  // The toolbar button puts in the book's design (Appearance → Scene breaks) right away.
+  // To use a different one in a single spot, click that break on the page.
+  function pickScene() {
     if (!activeBody()) return toast('Tap into your writing where the break should go.');
-    popover(btn, `<div class="pop-title">Insert a scene break</div>${sceneGrid(P.project.sceneBreak, true)}<p class="pop-hint">The highlighted one is this project’s usual design. Tip: type *** on its own line and press Return to add it without this menu.</p>`, id => insertScene(id));
+    insertScene(P.project.sceneBreak);
   }
   function scenePop(el) {
     const body = el.closest('.chap-body');
@@ -1694,14 +1696,15 @@ const Editor = (() => {
     $$('.chap-end span').forEach(s => { s.innerHTML = sceneTile(project.sceneBreak); });
     setTimeout(() => { if (!P) return; setMode(); paginateAll(); layoutNotes(); }, 120);
   }
-  // Change every scene break in the project to one design (from the Look sheet).
-  function setAllScenes(id) {
+  // The book's design changed (Appearance): the breaks still in the old design follow it.
+  // Ones she changed by hand (clicked and picked another) keep theirs.
+  function setAllScenes(id, from) {
     if (!P) return;
-    const s = sceneOf(id);
+    const s = sceneOf(id), old = sceneOf(from).id;
     for (const c of P.chapters) {
       const body = bodyOf(c.id);
       if (!body) continue;
-      const list = $$('.scene', body);
+      const list = $$('.scene', body).filter(el => sceneOf(el.dataset.s).id === old);
       if (!list.length) continue;
       list.forEach(el => { el.dataset.s = s.id; el.textContent = s.t; });
       markDirty(c.id);
@@ -1709,10 +1712,14 @@ const Editor = (() => {
     }
     flushAll();
   }
-  // Every chapter of a closed project, changed in the database directly.
-  function scenesIn(html, id) {
-    const s = sceneOf(id);
-    return String(html || '').replace(/<div class="scene" data-s="[^"]*">[^<]*<\/div>/g, `<div class="scene" data-s="${s.id}">${esc(s.t)}</div>`);
+  // The same for a chapter that isn't open (the writing page is closed): its saved html.
+  function scenesIn(html, id, from) {
+    const s = sceneOf(id), old = sceneOf(from).id;
+    const d = document.createElement('div');
+    d.innerHTML = html || '';
+    let n = 0;
+    $$('.scene', d).forEach(el => { if (sceneOf(el.dataset.s).id === old) { el.dataset.s = s.id; el.textContent = s.t; n++; } });
+    return n ? d.innerHTML : null;
   }
 
   return {
