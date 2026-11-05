@@ -145,10 +145,15 @@
     $('#signout').onclick = () => API.signOut();
   }
 
+  // Leaving a locked project (to the library, Story Ideas or another project) locks again right away,
+  // unless she turned that off in Settings → Lock. Moving between its own tabs doesn't.
+  let inLockedPid = null;
   function render(fromData) {
     if (!S || !S.loaded) return;
     route = location.hash || '#/shelf';
     const m = route.match(/^#\/p\/([^/]+)(?:\/(chars|timeline|board|ideas|research|map)(?:\/([^/]+))?)?$/);
+    if (inLockedPid && inLockedPid !== (m && m[1]) && settings().lockLeave !== false && Vault.isOpen()) Vault.lock();
+    inLockedPid = m && isLockedPid(m[1]) ? m[1] : null;
     if (m) {
       const p = S.projects.find(x => x.id === m[1]);
       if (!p) { if (!fromData) go('#/shelf'); return; }
@@ -898,6 +903,7 @@
         <h2>${icon('lock')} Lock</h2>
         ${!Vault.isSetUp() ? `<p class="muted">Not set up yet. It’s set up the first time you choose <b>⋯ → Lock this project</b> in a project.</p>` : `
         <p class="muted">Locked projects lock again when you leave the app. ${Vault.isOpen() ? 'They’re <b>unlocked</b> right now.' : 'They’re locked right now.'}</p>
+        <label class="check"><input type="checkbox" id="st-lockleave" ${st.lockLeave !== false ? 'checked' : ''}> Lock as soon as I leave a locked project <small class="muted">— going back to My Library or into another project</small></label>
         <div class="field"><label>Also lock after this long without typing</label>
           <div class="seg" id="st-idle">${[[0, 'Off'], [5, '5 min'], [15, '15 min'], [30, '30 min'], [60, '60 min']].map(([v, l]) => `<button data-idle="${v}" class="${(st.lockIdle || 0) === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
         <div class="row">${Vault.isOpen() ? `<button class="btn quiet" id="st-locknow">${icon('lock')} Lock now</button>` : ''}<button class="btn quiet" id="st-chpass">Change passphrase</button><button class="btn quiet" id="st-recover">Forgot passphrase</button></div>`}
@@ -930,6 +936,7 @@
       const ib = e.target.closest('#st-idle button');
       if (ib) { const v = Number(ib.dataset.idle); S.settings.lockIdle = v; Vault.setIdle(v); API.saveSettings({ lockIdle: v }); settingsScreen(); return; }
       if (e.target.closest('#st-locknow')) { Vault.lock(); settingsScreen(); return; }
+      if (e.target.id === 'st-lockleave') { S.settings.lockLeave = e.target.checked; API.saveSettings({ lockLeave: e.target.checked }); return; }
       if (e.target.closest('#st-chpass')) return changePassSheet();
       if (e.target.closest('#st-recover')) return recoverSheet().then(() => settingsScreen());
       if (e.target.closest('#st-check')) return checkStorage();
