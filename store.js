@@ -153,14 +153,23 @@ const Store = (() => {
     quiet(ref.set(img));
     return ref.id;
   }
+  // The copy already saved on this device first (no waiting on the internet), then a quiet check
+  // with the database in the background that refreshes the device copy. Only a photo this device
+  // has never seen waits for the download. (A changed photo is always saved as a new one.)
+  function imageSnap(id) {
+    const ref = col('images').doc(id);
+    return ref.get({ source: 'cache' })
+      .then(s => { if (!s.exists) throw new Error('not here'); ref.get({ source: 'server' }).catch(() => {}); return s; })
+      .catch(() => ref.get());
+  }
   function getImage(id) {
     if (!id) return Promise.resolve('');
     if (imgCache[id]) return Promise.resolve(imgCache[id]);
-    return col('images').doc(id).get().then(s => (imgCache[id] = (s.exists && s.data().data) || '')).catch(() => '');
+    return imageSnap(id).then(s => (imgCache[id] = (s.exists && s.data().data) || '')).catch(() => '');
   }
   const deleteImage = id => { delete imgCache[id]; return quiet(col('images').doc(id).delete()); };
   // the whole entry (a locked photo has enc instead of data)
-  const getImageDoc = id => (id ? col('images').doc(id).get().then(s => (s.exists ? s.data() : null)).catch(() => null) : Promise.resolve(null));
+  const getImageDoc = id => (id ? imageSnap(id).then(s => (s.exists ? s.data() : null)).catch(() => null) : Promise.resolve(null));
   const saveImage = (id, patch) => { delete imgCache[id]; return quiet(col('images').doc(id).set(patch)); };
 
   // ---- characters, timeline events, board photos (one project at a time) ----
