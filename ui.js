@@ -73,7 +73,7 @@ const UI = (() => {
     el.className = 'sheet ' + (opts.cls || '');
     // opts.back = { label, go, dirty }: a "‹ label" link at the top that goes back where the sheet was
     // opened from (the project's ⋯ menu); with unsaved changes (dirty()) it asks first
-    const back = opts.back ? `<button class="ap-back sheet-back" data-act="sheet-back">${icon('back')} ${esc(opts.back.label)}</button>` : '';
+    const back = opts.back ? `<button class="ap-back sheet-return" data-act="sheet-return">${icon('back')} ${esc(opts.back.label)}</button>` : '';
     el.innerHTML = `<button class="sheet-x" data-act="close" aria-label="Close">${icon('x')}</button>${back}${html}`;
     wrap.hidden = false;
     document.body.classList.add('sheet-open');
@@ -84,7 +84,7 @@ const UI = (() => {
     wrap._key = onKey;
     wrap.onclick = async e => {
       if (e.target.closest('[data-act="close"]')) closeSheet();
-      if (e.target.closest('[data-act="sheet-back"]') && opts.back) {
+      if (e.target.closest('[data-act="sheet-return"]') && opts.back) {
         if (opts.back.dirty && opts.back.dirty() && !(await ask('Leave without saving?', 'The changes you made here won’t be kept.', 'Leave without saving', { cancelLabel: 'Keep editing' }))) return;
         closeSheet();
         opts.back.go();

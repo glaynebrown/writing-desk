@@ -875,8 +875,8 @@ body.find-on .paged .margin { opacity: .35; }
 .ap-orn { font-family: var(--body-font); color: var(--accent-deep); font-size: 17px; }
 .ap-back { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; padding: 0; margin: -4px 0 8px; color: var(--accent-deep); font-weight: 700; font-size: 14.5px; cursor: pointer; }
 .ap-back .icon { width: 18px; height: 18px; }
-.sheet-back { display: flex; } /* (the "‹ book name" link back to the ⋯ menu, ui.js sheet) */
-.sheet.in-page > .sheet-back { display: none; } /* (inside an Appearance page, its own "‹ Appearance" link shows instead) */
+.sheet-return { display: flex; } /* (the "‹ book name" link back to the ⋯ menu, ui.js sheet; not .sheet-back = the dim shade behind sheets) */
+.sheet.in-page > .sheet-return { display: none; } /* (inside an Appearance page, its own "‹ Appearance" link shows instead) */
 .ap-page > .field:first-child { margin-top: 0; }
 #lk-body.ap-in, #pm-body.ap-in { animation: ap-in .22s ease; }
 #lk-body.ap-out, #pm-body.ap-out { animation: ap-out .22s ease; }
