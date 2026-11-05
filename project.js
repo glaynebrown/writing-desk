@@ -325,14 +325,16 @@ const Project = (() => {
   const COL_GAP = 14;
   function boardPage(box) {
     const p = O.p, st = O.ctx.settings();
-    const filters = [['', 'All'], ...O.chars.map(c => ['c:' + c.id, c.name]), ...O.chapters.map(c => ['h:' + c.id, chapterName(c)])];
+    // (one chapter: a chapter filter would just show everything, so only characters then)
+    const filters = [['', 'All'], ...O.chars.map(c => ['c:' + c.id, c.name]), ...(O.chapters.length > 1 ? O.chapters.map(c => ['h:' + c.id, chapterName(c)]) : [])];
+    if (!filters.some(([id]) => id === boardFilter)) boardFilter = ''; // (its button is gone)
     const shown = boardList();
     box.innerHTML = `<div class="ps-head"><h1>Vision board</h1>
         <div class="head-btns">
           <a class="btn quiet" href="${esc(safe(p.pinterest) || safe(st.pinterest) || 'https://www.pinterest.com/')}" target="_blank" rel="noopener">${icon('pinterest')} Pinterest</a>
           <a class="btn quiet" href="${esc(safe(p.canva) || safe(st.canva) || 'https://www.canva.com/')}" target="_blank" rel="noopener">${icon('canva')} Canva</a>
           <button class="btn quiet" data-a="pin-paste" title="Paste a copied photo">${icon('copy')} Paste</button>
-          <button class="btn" data-a="pin-add">${icon('plus')} Add photos</button>
+          <button class="btn icon-btn" data-a="pin-add" title="Add photos" aria-label="Add photos">${icon('plus')}</button>
         </div></div>
       ${filters.length > 1 && O.pins.length ? `<div class="chips filter">${filters.map(([id, n]) => `<button class="chip ${boardFilter === id ? 'on' : ''}" data-bf="${id}">${esc(n)}</button>`).join('')}</div>` : ''}
       ${O.pins.length ? `<div class="board" id="board">${shown.map(pinHtml).join('')}</div>
@@ -340,7 +342,11 @@ const Project = (() => {
         : empty('Your board is empty. Add photos, drop them here, or copy one from Pinterest and press Paste.')}
       <div class="drop-hint" id="drop-hint"><span>${icon('photo')} Drop photos to add them</span></div>`;
     fillImgs(box);
+    // straight into their spots: the slide (transition) is only for rearranging, not for drawing the board
+    const bd = $('#board');
+    if (bd) bd.classList.add('placing');
     layoutBoard();
+    if (bd) { void bd.offsetHeight; bd.classList.remove('placing'); } // (the spots are set while the slide is off)
     bindDrop(box);
     const b = $('#board');
     if (b && !boardFilter) boardDrag(b);
