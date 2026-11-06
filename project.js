@@ -128,6 +128,66 @@ const Project = (() => {
   const photo = (c, cls) => `<span class="cphoto ${cls || ''}">${c.photoId ? `<img data-img="${c.photoId}" alt="">` : `<span>${esc(initials(c.name))}</span>`}</span>`;
   const empty = (msg, btn) => `<div class="empty"><img class="empty-candle" src="candle.webp" alt=""><p>${msg}</p>${btn || ''}</div>`;
 
+  // ---------- ties: a web of who's connected to whom (Characters page) ----------
+  // A character's rels [{to, label}]: "<to> is my <label>". One line per pair; the same word both
+  // ways (in love, best friends) shows once in the middle, a different word each way (older brother /
+  // little sister) shows each word near the person it describes.
+  function tiesOf() {
+    const out = [], seen = new Set();
+    for (const a of O.chars) for (const r of a.rels || []) {
+      const b = charById(r.to);
+      if (!b || b.id === a.id) continue;
+      const key = [a.id, b.id].sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const back = (b.rels || []).find(x => x.to === a.id);
+      out.push({ a: a.id, b: b.id, bIs: (r.label || '').trim(), aIs: ((back && back.label) || '').trim() });
+    }
+    return out;
+  }
+  function drawTies() {
+    const box = $('#ties');
+    if (!box || !O) return;
+    const ties = tiesOf();
+    const ids = new Set(ties.flatMap(t => [t.a, t.b]));
+    const people = O.chars.filter(c => ids.has(c.id)); // (only the ones with a tie)
+    const W = box.clientWidth, small = narrow();
+    const H = small ? Math.max(340, W * 1.3) : Math.max(340, Math.min(560, W * 0.55));
+    box.style.height = H + 'px';
+    const R = small ? 26 : 34, padX = R + (small ? 22 : 58), padY = R + 30;
+    const pos = {};
+    people.forEach((c, i) => {
+      const t = -Math.PI / 2 + (i / people.length) * Math.PI * 2;
+      pos[c.id] = { x: W / 2 + (W / 2 - padX) * Math.cos(t), y: H / 2 + (H / 2 - padY) * Math.sin(t) };
+    });
+    const at = (from, to, k) => ({ x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k });
+    // a word near one end, but clear of that person's photo
+    const near = (from, to) => { const d = Math.hypot(to.x - from.x, to.y - from.y) || 1; return at(from, to, Math.min(0.42, Math.max(0.3, (R + 26) / d))); };
+    const lab = (p, text, t) => `<span class="tie-lab" data-a="${t.a}" data-b="${t.b}" style="left:${p.x}px;top:${p.y}px">${esc(text)}</span>`;
+    let lines = '', labels = '';
+    for (const t of ties) {
+      const A = pos[t.a], B = pos[t.b];
+      lines += `<line data-a="${t.a}" data-b="${t.b}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
+      const same = !t.aIs || !t.bIs || t.aIs.toLowerCase() === t.bIs.toLowerCase();
+      if (same) labels += lab(at(A, B, 0.5), t.bIs || t.aIs, t);
+      else labels += lab(near(B, A), t.bIs, t) + lab(near(A, B), t.aIs, t);
+    }
+    box.innerHTML = `<svg aria-hidden="true">${lines}</svg>${labels}${people.map(c => `<button class="tie-node" data-id="${c.id}" style="left:${pos[c.id].x}px;top:${pos[c.id].y}px">${photo(c)}<span>${esc(c.name || 'Unnamed')}</span></button>`).join('')}`;
+    fillImgs(box);
+    // hover (or tap) someone: just their ties stay bright
+    const focus = id => {
+      box.classList.toggle('focusing', !!id);
+      $$('[data-a]', box).forEach(el => el.classList.toggle('on', !!id && (el.dataset.a === id || el.dataset.b === id)));
+      $$('.tie-node', box).forEach(n => n.classList.toggle('on', !!id && (n.dataset.id === id || ties.some(t => (t.a === id && t.b === n.dataset.id) || (t.b === id && t.a === n.dataset.id)))));
+    };
+    let held = null;
+    $$('.tie-node', box).forEach(n => {
+      n.onmouseenter = () => { if (!held) focus(n.dataset.id); };
+      n.onmouseleave = () => { if (!held) focus(null); };
+      n.onclick = () => { held = held === n.dataset.id ? null : n.dataset.id; focus(held); };
+    });
+  }
+
   // ---------- characters ----------
   function charsPage(box) {
     const groups = {};
@@ -137,9 +197,11 @@ const Project = (() => {
       ${O.chars.length ? order.map(r => `<section class="role-sec"><h2 class="sec-title">${esc(r)}</h2>
         <div class="char-grid" data-role="${esc(r)}">${groups[r].map(c => `<a class="char-card" href="#/p/${O.pid}/chars/${c.id}" data-id="${c.id}">
           ${photo(c)}<b>${esc(c.name || 'Unnamed')}</b>${c.nick ? `<span class="nick">“${esc(c.nick)}”</span>` : ''}<span class="meta">${[c.age ? 'Age ' + esc(c.age) : ''].filter(Boolean).join(' · ')}</span>
-        </a>`).join('')}</div></section>`).join('') + `<p class="hint center">Drag a card to change the order.</p>`
-        : empty('No characters yet.')}`;
+        </a>`).join('')}</div></section>`).join('')
+        : empty('No characters yet.')}
+      ${O.chars.length > 1 ? `<section class="role-sec ties-sec"><h2 class="sec-title">Ties</h2>${tiesOf().length ? '<div class="ties" id="ties"></div>' : '<p class="muted">Add relationships on a character’s page and they’ll show here as a web.</p>'}</section>` : ''}`;
     fillImgs(box);
+    drawTies();
     $$('.char-grid', box).forEach(g => sortable(g, '.char-card', {
       grid: true,
       key: el => el.dataset.id,
@@ -414,7 +476,7 @@ const Project = (() => {
     });
     b.style.height = Math.max(...hs, 0) + 'px';
   }
-  function onResize() { clearTimeout(onResize.t); onResize.t = setTimeout(layoutBoard, 80); }
+  function onResize() { clearTimeout(onResize.t); onResize.t = setTimeout(() => { layoutBoard(); drawTies(); }, 80); }
 
   // drag a photo to a new spot (mouse: just drag; finger: press and hold)
   function boardDrag(b) {
