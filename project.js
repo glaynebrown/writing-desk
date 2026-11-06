@@ -145,34 +145,90 @@ const Project = (() => {
     }
     return out;
   }
+  // what kind of tie the words describe (line color/style + the legend)
+  const TIE_KINDS = [
+    ['love', 'Romance', /\b(love|lovers?|crush|dating|married|husband|wife|boyfriend|girlfriend|partners?|engaged|fianc|ex)\b/i],
+    ['family', 'Family', /(sister|brother|sibling|mom|mother|dad|father|parent|son|daughter|cousin|aunt|uncle|niece|nephew|grand|twin|family|step)/i],
+    ['friends', 'Friends', /(friend|bff|bestie)/i],
+  ];
+  const tieKind = t => { const w = `${t.aIs} ${t.bIs}`; const k = TIE_KINDS.find(([, , re]) => re.test(w)); return k ? k[0] : 'other'; };
+  const unquote = w => String(w || '').trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
+  // Where everyone sits: the most-connected person in the middle, the people tied to each other
+  // pulled close and everyone else pushed apart (a small, steady spring layout), then fitted to the box.
+  function tieLayout(people, ties, W, Hmax, padX, padY, gap) {
+    const deg = id => ties.filter(t => t.a === id || t.b === id).length;
+    const hub = people.slice().sort((x, y) => deg(y.id) - deg(x.id))[0].id;
+    const order = [hub], q = [hub];
+    while (q.length) { const id = q.shift(); for (const t of ties) { const o = t.a === id ? t.b : t.b === id ? t.a : null; if (o && !order.includes(o)) { order.push(o); q.push(o); } } }
+    people.forEach(c => { if (!order.includes(c.id)) order.push(c.id); });
+    const P = {};
+    order.forEach((id, i) => { const a = -Math.PI / 2 + ((i - 1) / Math.max(1, order.length - 1)) * Math.PI * 2; P[id] = i ? { x: Math.cos(a), y: Math.sin(a) } : { x: 0, y: 0 }; });
+    for (let it = 0; it < 400; it++) {
+      const F = Object.fromEntries(order.map(id => [id, { x: 0, y: 0 }]));
+      for (let i = 0; i < order.length; i++) for (let j = i + 1; j < order.length; j++) {
+        const a = P[order[i]], b = P[order[j]], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01, d = Math.sqrt(d2), f = 0.08 / d2;
+        F[order[i]].x += dx / d * f; F[order[i]].y += dy / d * f; F[order[j]].x -= dx / d * f; F[order[j]].y -= dy / d * f;
+      }
+      for (const t of ties) {
+        const a = P[t.a], b = P[t.b], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, f = (d - 0.9) * 0.1;
+        F[t.a].x += dx / d * f; F[t.a].y += dy / d * f; F[t.b].x -= dx / d * f; F[t.b].y -= dy / d * f;
+      }
+      order.forEach(id => { if (id === hub) return; P[id].x += F[id].x - P[id].x * 0.04; P[id].y += F[id].y - P[id].y * 0.04; }); // (a pull to the middle keeps loose ends close)
+    }
+    // the same scale both ways (no stretching), as big as fits, but with people at least `gap` apart
+    const mx = Math.max(...order.map(id => Math.abs(P[id].x))) || 1, my = Math.max(...order.map(id => Math.abs(P[id].y))) || 1;
+    let closest = Infinity;
+    for (let i = 0; i < order.length; i++) for (let j = i + 1; j < order.length; j++) closest = Math.min(closest, Math.hypot(P[order[i]].x - P[order[j]].x, P[order[i]].y - P[order[j]].y));
+    const fit = Math.min((W / 2 - padX) / mx, (Hmax / 2 - padY) / my);
+    const sc = Math.min((W / 2 - padX) / mx, Math.max(fit, gap / (closest || 1)));
+    const scx = Math.min((W / 2 - padX) / mx, sc * 1.6); // (a little wider than tall: the page is wide)
+    const H = Math.ceil(2 * (my * sc + padY)); // (only as tall as the web needs)
+    const out = { H };
+    order.forEach(id => { out[id] = { x: W / 2 + P[id].x * scx, y: H / 2 + P[id].y * sc }; });
+    return out;
+  }
   function drawTies() {
     const box = $('#ties');
     if (!box || !O) return;
-    const ties = tiesOf();
+    const ties = tiesOf().map(t => ({ ...t, aIs: unquote(t.aIs), bIs: unquote(t.bIs) }));
     const ids = new Set(ties.flatMap(t => [t.a, t.b]));
     const people = O.chars.filter(c => ids.has(c.id)); // (only the ones with a tie)
     const W = box.clientWidth, small = narrow();
-    const H = small ? Math.max(340, W * 1.3) : Math.max(340, Math.min(560, W * 0.55));
-    box.style.height = H + 'px';
-    const R = small ? 26 : 34, padX = R + (small ? 22 : 58), padY = R + 30;
-    const pos = {};
-    people.forEach((c, i) => {
-      const t = -Math.PI / 2 + (i / people.length) * Math.PI * 2;
-      pos[c.id] = { x: W / 2 + (W / 2 - padX) * Math.cos(t), y: H / 2 + (H / 2 - padY) * Math.sin(t) };
-    });
-    const at = (from, to, k) => ({ x: from.x + (to.x - from.x) * k, y: from.y + (to.y - from.y) * k });
-    // a word near one end, but clear of that person's photo
-    const near = (from, to) => { const d = Math.hypot(to.x - from.x, to.y - from.y) || 1; return at(from, to, Math.min(0.42, Math.max(0.3, (R + 26) / d))); };
+    const R = small ? 26 : 34;
+    // (only as tall as it needs to be, so a small cast doesn't feel spread out)
+    const pos = tieLayout(people, ties, W, small ? 560 : 520, R + (small ? 24 : 70), R + 34, small ? 2 * R + 70 : Math.max(2 * R + 150, W * 0.2));
+    box.style.height = pos.H + 'px';
+    // a gentle curve for each tie; labels sit on it
+    const curve = (A, B, key) => {
+      const len = Math.hypot(B.x - A.x, B.y - A.y) || 1, bend = (key.charCodeAt(0) % 2 ? 1 : -1) * len * 0.12;
+      return { A, B, C: { x: (A.x + B.x) / 2 - (B.y - A.y) / len * bend, y: (A.y + B.y) / 2 + (B.x - A.x) / len * bend }, len };
+    };
+    const on = (c, t) => ({ x: (1 - t) ** 2 * c.A.x + 2 * (1 - t) * t * c.C.x + t * t * c.B.x, y: (1 - t) ** 2 * c.A.y + 2 * (1 - t) * t * c.C.y + t * t * c.B.y });
+    const nearT = c => Math.min(0.42, Math.max(0.3, (R + 26) / c.len)); // (a word near one end, clear of the photo)
     const lab = (p, text, t) => `<span class="tie-lab" data-a="${t.a}" data-b="${t.b}" style="left:${p.x}px;top:${p.y}px">${esc(text)}</span>`;
-    let lines = '', labels = '';
+    let paths = '', labels = '';
+    const kinds = new Set();
     for (const t of ties) {
-      const A = pos[t.a], B = pos[t.b];
-      lines += `<line data-a="${t.a}" data-b="${t.b}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
+      const c = curve(pos[t.a], pos[t.b], t.a + t.b), kind = tieKind(t);
+      kinds.add(kind);
+      paths += `<path class="k-${kind}" data-a="${t.a}" data-b="${t.b}" d="M${c.A.x} ${c.A.y} Q${c.C.x} ${c.C.y} ${c.B.x} ${c.B.y}"/>`;
       const same = !t.aIs || !t.bIs || t.aIs.toLowerCase() === t.bIs.toLowerCase();
-      if (same) labels += lab(at(A, B, 0.5), t.bIs || t.aIs, t);
-      else labels += lab(near(B, A), t.bIs, t) + lab(near(A, B), t.aIs, t);
+      if (same) labels += lab(on(c, 0.5), t.bIs || t.aIs, t);
+      else {
+        // (bIs describes b, so it sits at the B end; on a short line, one word goes just above it and one below)
+        const pb = on(c, 1 - nearT(c)), pa = on(c, nearT(c));
+        if (Math.hypot(pb.x - pa.x, pb.y - pa.y) < 90) {
+          const nx = -(c.B.y - c.A.y) / c.len * 11, ny = (c.B.x - c.A.x) / c.len * 11;
+          pb.x += nx; pb.y += ny; pa.x -= nx; pa.y -= ny;
+        }
+        labels += lab(pb, t.bIs, t) + lab(pa, t.aIs, t);
+      }
     }
-    box.innerHTML = `<svg aria-hidden="true">${lines}</svg>${labels}${people.map(c => `<button class="tie-node" data-id="${c.id}" style="left:${pos[c.id].x}px;top:${pos[c.id].y}px">${photo(c)}<span>${esc(c.name || 'Unnamed')}</span></button>`).join('')}`;
+    const legend = TIE_KINDS.filter(([k]) => kinds.has(k)).map(([k, n]) => `<span><svg width="26" height="8" aria-hidden="true"><path class="k-${k}" d="M1 4 H25"/></svg>${n}</span>`).join('');
+    box.innerHTML = `<svg aria-hidden="true">${paths}</svg>${labels}${people.map(c => `<button class="tie-node" data-id="${c.id}" style="left:${pos[c.id].x}px;top:${pos[c.id].y}px">${photo(c)}<span>${esc(c.name || 'Unnamed')}</span></button>`).join('')}`;
+    let lg = box.nextElementSibling;
+    if (!lg || !lg.classList.contains('tie-legend')) { lg = document.createElement('div'); lg.className = 'tie-legend'; box.after(lg); }
+    lg.innerHTML = legend;
     fillImgs(box);
     // hover (or tap) someone: just their ties stay bright
     const focus = id => {

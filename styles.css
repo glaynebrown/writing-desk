@@ -176,20 +176,28 @@ main#view { min-height: 60vh; }
 /* Ties: the web of relationships under the character cards (project.js drawTies) */
 .ties { position: relative; margin-top: 6px; }
 .ties svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.ties line { stroke: var(--accent); stroke-opacity: .45; stroke-width: 1.5; transition: stroke-opacity .2s, opacity .2s; }
+.ties path, .tie-legend path { fill: none; stroke-width: 1.6; stroke-linecap: round; transition: stroke-opacity .2s, opacity .2s; }
+.ties path { stroke-opacity: .7; }
+path.k-love { stroke: #C26B7C; stroke-width: 2; }
+path.k-family { stroke: var(--ink-soft); stroke-dasharray: 5 5; }
+path.k-friends { stroke: var(--accent); }
+path.k-other { stroke: var(--ink-faint); }
+.tie-legend { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin-top: 4px; font-size: 12.5px; color: var(--ink-soft); }
+.tie-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .tie-node { position: absolute; transform: translate(-50%, -34px); display: flex; flex-direction: column; align-items: center; gap: 5px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink); font: 600 calc(16px * var(--ts)) var(--title-font); transition: opacity .2s; z-index: 2; }
 .tie-node .cphoto { width: 68px; height: 68px; box-shadow: 0 0 0 3px var(--paper), 0 4px 12px rgba(40, 25, 10, .18); }
 .tie-node .cphoto > span { font-size: 24px; }
 .tie-node > span:last-child { background: color-mix(in srgb, var(--paper) 88%, transparent); padding: 0 6px; border-radius: 6px; white-space: nowrap; }
-.tie-lab { position: absolute; transform: translate(-50%, -50%); font-size: 12.5px; padding: 2px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink-soft); white-space: nowrap; pointer-events: none; transition: opacity .2s; z-index: 1; }
-.ties.focusing line:not(.on), .ties.focusing .tie-lab:not(.on) { opacity: .08; }
-.ties.focusing line.on { stroke-opacity: .95; stroke-width: 2; }
+.tie-lab { position: absolute; transform: translate(-50%, -50%); font: italic calc(14px * var(--bs, 1)) var(--body-font); color: var(--ink-soft); white-space: nowrap; pointer-events: none; transition: opacity .2s; z-index: 1;
+  text-shadow: 0 0 3px var(--bg), 0 0 6px var(--bg), 0 0 10px var(--bg); } /* (a soft halo instead of a box, so it reads over the line) */
+.ties.focusing path:not(.on), .ties.focusing .tie-lab:not(.on) { opacity: .08; }
+.ties.focusing path.on { stroke-opacity: 1; }
 .ties.focusing .tie-node:not(.on) { opacity: .35; }
 @media (max-width: 760px) {
   .tie-node { transform: translate(-50%, -26px); font-size: 13px; }
   .tie-node .cphoto { width: 52px; height: 52px; }
   .tie-node .cphoto > span { font-size: 18px; }
-  .tie-lab { font-size: 11px; padding: 1px 7px; }
+  .tie-lab { font-size: 12.5px; }
 }
 .char-page.photo-over .cphoto.big { outline: 3px dashed var(--accent); outline-offset: 4px; } /* (a photo being dragged onto a character's page) */
 .cphoto { width: 84px; height: 84px; border-radius: 50%; overflow: hidden; background: var(--accent-soft); color: var(--accent-deep); display: flex; align-items: center; justify-content: center; font-family: var(--title-font); font-size: 30px; font-weight: 600; flex: none; }
