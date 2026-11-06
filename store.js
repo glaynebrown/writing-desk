@@ -9,7 +9,7 @@
                                       mnotes {id: {text, at}} (margin notes), updatedAt }
      users/{uid}/images/{iid}       { data (a compressed photo as a data URL) | enc (locked), w, h, pid }
      users/{uid}/chars/{id}         a character: { pid, order, name, nick, age, role, photoId, traits, personality,
-                                      goals, fears, backstory, details [{label, value}], rels [{to, label}] }
+                                      habits, goals, fears, backstory, remindsOf, details [{label, value}], rels [{to, label}] }
      users/{uid}/events/{id}        a timeline event: { pid, order, title, when, text, chapters [cid], chars [id] }
      users/{uid}/pins/{id}          a vision-board photo: { pid, order, imageId, w, h, caption, chapters [cid], chars [id] }
                                     (locked projects: chars/events/pins are { pid, order, enc } -- see vault.js)

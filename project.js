@@ -20,9 +20,11 @@ const Project = (() => {
   const FIELDS = [
     ['traits', 'Physical traits', 'Hair, eyes, height, scars, how they move…'],
     ['personality', 'Personality', 'How they act, talk, what they’re like on a bad day…'],
+    ['habits', 'Habits & quirks', 'Nervous habits, tics, sleep, what they do without thinking…'],
     ['goals', 'Goals', 'What they want — and what they think they want'],
     ['fears', 'Fears', ''],
     ['backstory', 'Backstory', 'Where they come from, what happened before the story'],
+    ['remindsOf', 'Reminds me of', 'Characters from books, shows or movies they feel like…'],
   ];
 
   // ---------- tabs ----------
