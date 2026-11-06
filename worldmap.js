@@ -16,35 +16,28 @@ const WorldMap = (() => {
 
   let S = null;            // { ctx, p, map, places, chars, chapters, events }
   const views = {};        // pid -> { z, x, y } so a redraw keeps your spot
-  let adding = false, filter = '', hot = '';
+  let adding = false, hot = '';
 
   function page(box, state) {
     S = state;
     const { p, map, places } = S;
-    const filters = [['', 'All'], ...S.chars.map(c => ['c:' + c.id, c.name]), ...S.chapters.map((c, i) => ['h:' + c.id, c.title || `Chapter ${i + 1}`])];
     box.innerHTML = `<div class="ps-head"><h1>Map</h1>
         <div class="head-btns">${map ? `<button class="btn quiet" data-wm="replace">${icon('photo')} Change map</button><button class="btn ${adding ? 'on-add' : ''}" data-wm="add">${icon('plus')} ${adding ? 'Tap the map…' : 'Add a place'}</button>` : `<button class="btn" data-wm="upload">${icon('plus')} Upload your map</button>`}</div></div>
       ${!map ? `<div class="empty"><img class="empty-candle" src="candle.webp" alt=""><p>No map yet. Make one in Gemini or Canva — or draw it — then upload it here and pin your places.</p></div>` : `
-      ${places.length && filters.length > 1 ? `<div class="chips filter">${filters.map(([id, n]) => `<button class="chip ${filter === id ? 'on' : ''}" data-wf="${id}">${esc(n)}</button>`).join('')}</div>` : ''}
       <div class="wm">
         <div class="wm-view ${adding ? 'adding' : ''}" id="wm-view">
           <div class="wm-stage" id="wm-stage" style="width:${map.w}px;height:${map.h}px"><img class="wm-img" data-img="${map.imageId}" alt="" draggable="false">
             ${places.map(pinHtml).join('')}</div>
           <div class="wm-zoom"><button data-wm="in" title="Zoom in" aria-label="Zoom in">${icon('plus')}</button><button data-wm="out" title="Zoom out" aria-label="Zoom out"><span class="minus"></span></button><button data-wm="fit" title="Show the whole map" aria-label="Show the whole map">${icon('focus')}</button></div>
         </div>
-        <aside class="wm-list"><h3>Places</h3>${places.length ? places.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(pl => `<button class="wm-row ${shown(pl) ? '' : 'dim'}" data-wgo="${pl.id}"><span class="wm-dot">${icon(kindIcon(pl.kind))}</span><span><b>${esc(pl.name || 'Unnamed place')}</b>${pl.notes ? `<small>${esc(pl.notes.slice(0, 70))}</small>` : ''}</span></button>`).join('') : '<p class="hint">Tap <b>Add a place</b>, then tap the map.</p>'}</aside>
+        <aside class="wm-list"><h3>Places</h3>${places.length ? places.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '')).map(pl => `<button class="wm-row" data-wgo="${pl.id}"><span class="wm-dot">${icon(kindIcon(pl.kind))}</span><span><b>${esc(pl.name || 'Unnamed place')}</b>${pl.notes ? `<small>${esc(pl.notes.slice(0, 70))}</small>` : ''}</span></button>`).join('') : '<p class="hint">Tap <b>Add a place</b>, then tap the map.</p>'}</aside>
       </div>`}`;
     if (!map) return;
     const img = $('.wm-img', box);
     S.ctx.api.getImage(map.imageId).then(src => { if (src) img.src = src; });
     bindView();
   }
-  function shown(pl) {
-    if (!filter) return true;
-    const [k, id] = filter.split(':');
-    return (k === 'c' ? pl.chars : pl.chapters || []).includes(id);
-  }
-  const pinHtml = pl => `<button class="wm-pin ${shown(pl) ? '' : 'dim'} ${hot === pl.id ? 'hot' : ''}" data-pin="${pl.id}" style="left:${pl.x * 100}%;top:${pl.y * 100}%" title="${esc(pl.name || '')}"><span class="wm-mark">${icon(kindIcon(pl.kind))}</span><span class="wm-label">${esc(pl.name || '')}</span></button>`;
+  const pinHtml = pl => `<button class="wm-pin ${hot === pl.id ? 'hot' : ''}" data-pin="${pl.id}" style="left:${pl.x * 100}%;top:${pl.y * 100}%" title="${esc(pl.name || '')}"><span class="wm-mark">${icon(kindIcon(pl.kind))}</span><span class="wm-label">${esc(pl.name || '')}</span></button>`;
 
   // ---------- moving around ----------
   function fitView() {
@@ -255,8 +248,6 @@ const WorldMap = (() => {
       if (v && w === 'fit') { views[S.p.id] = { ...fitView(), w: S.map.w }; const st = $('#wm-stage'); st.classList.add('glide'); place(); setTimeout(() => st && st.classList.remove('glide'), 450); }
       return true;
     }
-    const f = t.closest('[data-wf]');
-    if (f) { filter = f.dataset.wf; S.redraw(); return true; }
     const g = t.closest('[data-wgo]');
     if (g) { const pl = S.places.find(x => x.id === g.dataset.wgo); if (pl) { fly(pl); if (narrow()) $('#wm-view').scrollIntoView({ behavior: 'smooth', block: 'center' }); } return true; }
     return false;
