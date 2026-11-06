@@ -209,7 +209,7 @@ const Research = (() => {
     root.ondrop = e => { if (!hasFiles(e)) return; e.preventDefault(); n = 0; hint.classList.remove('show'); addPhotos(Array.from(e.dataTransfer.files)); };
 
     async function addPhotos(files) {
-      files = (files || []).filter(f => /^image\//.test(f.type));
+      files = (files || []).filter(UI.isPhoto);
       if (!files.length) return;
       toast(files.length > 1 ? `Adding ${files.length} photos…` : 'Adding your photo…', 8000);
       const added = [];
@@ -217,12 +217,16 @@ const Research = (() => {
         try {
           const img = await prepPhoto(f, 1400, 600000);
           added.push({ id: await ctx.api.putImage({ data: img.data, w: img.w, h: img.h, topic: id }), w: img.w, h: img.h });
-        } catch (err) { UI.oops(err); }
+        } catch (err) { console.error(err); }
       }
       const c = ctx.topics().find(x => x.id === id) || t;
       c.photos = [...(c.photos || []), ...added];
-      save({ photos: c.photos }, true);
-      toast(added.length > 1 ? 'Photos added' : 'Photo added');
+      if (added.length) save({ photos: c.photos }, true);
+      // say what really happened (not "added" when it wasn't)
+      const n = files.length, failed = n - added.length;
+      if (!failed) toast(n > 1 ? `${n} photos added` : 'Photo added');
+      else if (!added.length) toast(n > 1 ? `None of those ${n} photos could be opened.` : 'That photo couldn’t be opened.', 6000);
+      else toast(`Added ${added.length} of ${n} photos — ${failed} couldn’t be opened.`, 6000);
     }
     async function pastePhotos() {
       try {

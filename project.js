@@ -333,7 +333,7 @@ const Project = (() => {
     cp.ondragleave = e => { if (!cp.contains(e.relatedTarget)) cp.classList.remove('photo-over'); };
     cp.ondrop = e => {
       cp.classList.remove('photo-over');
-      const f = isFiles(e) && Array.from(e.dataTransfer.files).find(x => x.type.startsWith('image/'));
+      const f = isFiles(e) && Array.from(e.dataTransfer.files).find(UI.isPhoto);
       if (f) { e.preventDefault(); e.stopPropagation(); charPhoto(c, f); } // (not also onto the board, if it was open before)
     };
     drawCharSide();
@@ -598,19 +598,25 @@ const Project = (() => {
   }
 
   async function addPhotos(files) {
-    files = (files || []).filter(f => /^image\//.test(f.type));
+    files = (files || []).filter(UI.isPhoto);
     if (!files.length) return;
-    toast(files.length > 1 ? `Adding ${files.length} photos…` : 'Adding your photo…', 8000);
-    let order = nextOrder(O.pins, true);
+    const n = files.length;
+    toast(n > 1 ? `Adding ${n} photos…` : 'Adding your photo…', 60000);
+    let order = nextOrder(O.pins, true), done = 0, failed = 0;
     const tag = boardFilter ? boardFilter.split(':') : null;
     for (const f of files) {
       try {
         const img = await prepPhoto(f, 1400, 600000);
         const imageId = await O.ctx.api.putImage({ ...img, pid: O.pid });
         O.ctx.api.addDoc('pins', { pid: O.pid, order: order--, imageId, w: img.w, h: img.h, caption: '', chars: tag && tag[0] === 'c' ? [tag[1]] : [], chapters: tag && tag[0] === 'h' ? [tag[1]] : [] });
-      } catch (e) { UI.oops(e); }
+        done++;
+      } catch (e) { console.error(e); failed++; }
+      if (n > 1) toast(`Adding photos… ${done + failed} of ${n}`, 60000);
     }
-    toast(files.length > 1 ? 'Photos added' : 'Photo added');
+    // say what really happened (not "added" when it wasn't)
+    if (!failed) toast(n > 1 ? `${n} photos added` : 'Photo added');
+    else if (!done) toast(n > 1 ? `None of those ${n} photos could be opened.` : 'That photo couldn’t be opened.', 6000);
+    else toast(`Added ${done} of ${n} photos — ${failed} couldn’t be opened.`, 6000);
   }
   // photos on the clipboard (the Paste buttons)
   async function clipPhotos() {
@@ -639,7 +645,7 @@ const Project = (() => {
   }
   function onPaste(e) {
     if (!O || UI.sheetOpen()) return;
-    const files = Array.from(e.clipboardData && e.clipboardData.files || []).filter(f => f.type.startsWith('image/'));
+    const files = Array.from(e.clipboardData && e.clipboardData.files || []).filter(UI.isPhoto);
     if (!files.length) return;
     if (O.tab === 'board') { e.preventDefault(); addPhotos(files); return; }
     // on a character's page (not while typing in one of their boxes): it becomes their photo

@@ -139,6 +139,16 @@ const UI = (() => {
   }
 
   // ---- photos: shrink to a size the database can hold ----
+  // iPhone / Photos pictures are often HEIC, which Chrome can't open: those are turned into a JPEG
+  // first (the converter is only loaded the first time one comes along)
+  const HEIC2ANY = 'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js';
+  const isHeic = f => f instanceof Blob && (/image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name || ''));
+  const isPhoto = f => f instanceof Blob && (/^image\//.test(f.type) || isHeic(f));
+  async function fromHeic(f) {
+    await loadScript(HEIC2ANY);
+    const out = await window.heic2any({ blob: f, toType: 'image/jpeg', quality: 0.9 });
+    return Array.isArray(out) ? out[0] : out;
+  }
   function readFile(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
   }
@@ -147,6 +157,7 @@ const UI = (() => {
   }
   // -> { data (JPEG data URL), w, h }. Kept under ~700 KB so it fits in one database entry.
   async function prepPhoto(src, max = 1600, maxBytes = 700000) {
+    if (isHeic(src)) src = await fromHeic(src).catch(() => { throw new Error('That iPhone photo (HEIC) could not be opened.'); });
     if (src instanceof Blob) src = await readFile(src);
     const img = await loadImg(src);
     let w = img.naturalWidth || 1200, h = img.naturalHeight || 1800;
@@ -172,6 +183,7 @@ const UI = (() => {
   // background (light parts fade out), trimmed to the drawing. It's shown as a mask, tinted in the
   // text color, so only how dark each spot is matters.
   async function prepLineArt(src, max = 900) {
+    if (isHeic(src)) src = await fromHeic(src);
     if (src instanceof Blob) src = await readFile(src);
     const img = await loadImg(src);
     let w = img.naturalWidth || 600, h = img.naturalHeight || 200;
@@ -208,7 +220,7 @@ const UI = (() => {
     return new Promise(res => {
       const f = $('#file');
       f.value = '';
-      f.accept = accept;
+      f.accept = accept === 'image/*' ? 'image/*,.heic,.heif' : accept; // (iPhone photos too)
       f.multiple = !!many;
       f.onchange = () => res(many ? Array.from(f.files) : f.files[0] || null);
       f.click();
@@ -306,5 +318,5 @@ const UI = (() => {
     });
   }
 
-  return { $, $$, esc, icon, ls, num, wordsIn, plural, narrow, dayKey, ago, toast, oops, ask, sheet, closeSheet, sheetOpen, popover, closePopover, prepPhoto, prepLineArt, pickFile, sortable, numWord, loadScript };
+  return { $, $$, esc, icon, ls, num, wordsIn, plural, narrow, dayKey, ago, toast, oops, ask, sheet, closeSheet, sheetOpen, popover, closePopover, prepPhoto, prepLineArt, isPhoto, pickFile, sortable, numWord, loadScript };
 })();
