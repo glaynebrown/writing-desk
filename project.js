@@ -470,23 +470,18 @@ const Project = (() => {
   }
 
   // ---------- the vision board ----------
-  let boardFilter = '';
   const COL_GAP = 14;
   function boardPage(box) {
     const p = O.p, st = O.ctx.settings();
     // (one chapter: a chapter filter would just show everything, so only characters then)
-    const filters = [['', 'All'], ...O.chars.map(c => ['c:' + c.id, c.name]), ...(O.chapters.length > 1 ? O.chapters.map(c => ['h:' + c.id, chapterName(c)]) : [])];
-    if (!filters.some(([id]) => id === boardFilter)) boardFilter = ''; // (its button is gone)
-    const shown = boardList();
     box.innerHTML = `<div class="ps-head"><h1>Vision board</h1>
         <div class="head-btns">
           <a class="btn quiet" href="${esc(safe(p.pinterest) || safe(st.pinterest) || 'https://www.pinterest.com/')}" target="_blank" rel="noopener">${icon('pinterest')} Pinterest</a>
           <button class="btn quiet" data-a="pin-paste" title="Paste a copied photo">${icon('copy')} Paste</button>
           <button class="btn icon-btn" data-a="pin-add" title="Add photos" aria-label="Add photos">${icon('plus')}</button>
         </div></div>
-      ${filters.length > 1 && O.pins.length ? `<div class="chips filter">${filters.map(([id, n]) => `<button class="chip ${boardFilter === id ? 'on' : ''}" data-bf="${id}">${esc(n)}</button>`).join('')}</div>` : ''}
-      ${O.pins.length ? `<div class="board" id="board">${shown.map(pinHtml).join('')}</div>
-        <p class="hint center">${boardFilter ? 'Pick “All” to drag photos into a new order.' : narrow() ? 'Press and hold a photo to drag it.' : 'Drag photos to rearrange them. You can also drop photos here, or copy one (on Pinterest: right-click → Copy image) and press ⌘V.'}</p>`
+      ${O.pins.length ? `<div class="board" id="board">${O.pins.map(pinHtml).join('')}</div>
+        <p class="hint center">${narrow() ? 'Press and hold a photo to drag it.' : 'Drag photos to rearrange them. You can also drop photos here, or copy one (on Pinterest: right-click → Copy image) and press ⌘V.'}</p>`
         : empty('Your board is empty. Add photos, drop them here, or copy one from Pinterest and press Paste.')}
       <div class="drop-hint" id="drop-hint"><span>${icon('photo')} Drop photos to add them</span></div>`;
     fillImgs(box);
@@ -497,14 +492,9 @@ const Project = (() => {
     if (bd) { void bd.offsetHeight; bd.classList.remove('placing'); } // (the spots are set while the slide is off)
     bindDrop(box);
     const b = $('#board');
-    if (b && !boardFilter) boardDrag(b);
+    if (b) boardDrag(b);
   }
   const safe = u => (/^https?:\/\//i.test(u || '') ? u : '');
-  function boardList() {
-    if (!boardFilter) return O.pins;
-    const [k, id] = boardFilter.split(':');
-    return O.pins.filter(p => (k === 'c' ? p.chars : p.chapters || []).includes(id));
-  }
   function pinHtml(p) {
     const tags = [...(p.chars || []).map(charById).filter(Boolean).map(c => c.name)];
     return `<div class="pin" data-id="${p.id}" style="--ar:${p.w && p.h ? p.h / p.w : 1.3}">
@@ -603,12 +593,11 @@ const Project = (() => {
     const n = files.length;
     toast(n > 1 ? `Adding ${n} photos…` : 'Adding your photo…', 60000);
     let order = nextOrder(O.pins, true), done = 0, failed = 0;
-    const tag = boardFilter ? boardFilter.split(':') : null;
     for (const f of files) {
       try {
         const img = await prepPhoto(f, 1400, 600000);
         const imageId = await O.ctx.api.putImage({ ...img, pid: O.pid });
-        O.ctx.api.addDoc('pins', { pid: O.pid, order: order--, imageId, w: img.w, h: img.h, caption: '', chars: tag && tag[0] === 'c' ? [tag[1]] : [], chapters: tag && tag[0] === 'h' ? [tag[1]] : [] });
+        O.ctx.api.addDoc('pins', { pid: O.pid, order: order--, imageId, w: img.w, h: img.h, caption: '', chars: [], chapters: [] });
         done++;
       } catch (e) { console.error(e); failed++; }
       if (n > 1) toast(`Adding photos… ${done + failed} of ${n}`, 60000);
@@ -799,8 +788,6 @@ const Project = (() => {
     if (pi) return ideaSheet(O.ctx, O.p, O.pideas.find(x => x.id === pi.dataset.pi), { chapters: O.chapters, chars: O.chars });
     const tl = t.closest('[data-tl]');
     if (tl) { tlFilter = tl.dataset.tl; return draw(); }
-    const bf = t.closest('[data-bf]');
-    if (bf) { boardFilter = bf.dataset.bf; return draw(); }
     const ev = t.closest('[data-ev]');
     if (ev) return evSheet(O.events.find(x => x.id === ev.dataset.ev));
     const pin = t.closest('.pin');
