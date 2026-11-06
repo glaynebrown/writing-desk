@@ -253,8 +253,12 @@ const Project = (() => {
     let pick = null;
     const el = sheet(`<h2>Add a relationship</h2>
       <div class="field"><label>Who?</label><div class="chips">${others.map(o => `<button class="chip" data-to="${o.id}">${esc(o.name)}</button>`).join('')}</div></div>
-      <div class="field"><label for="rl-a"><span id="rl-who">They</span> are ${esc(c.name)}’s…</label><input class="input" id="rl-a" placeholder="older brother, rival, best friend…"></div>
-      <div class="field"><label for="rl-b">${esc(c.name)} is <span id="rl-who2">their</span>…</label><input class="input" id="rl-b" placeholder="little sister, rival…"></div>
+      <div id="rl-one"><div class="field"><label for="rl-both"><span id="rl-pair">Together they</span> are…</label><input class="input" id="rl-both" placeholder="in love, best friends, rivals…"></div>
+        <button type="button" class="link" id="rl-split">Different for each of them? (like older brother / little sister)</button></div>
+      <div id="rl-two" hidden>
+        <div class="field"><label for="rl-a"><span class="rl-name">They</span> <span id="rl-are">are</span> ${esc(c.name)}’s…</label><input class="input" id="rl-a" placeholder="older brother, mentor, mom…"></div>
+        <div class="field"><label for="rl-b">${esc(c.name)} is <span id="rl-who2">their</span>…</label><input class="input" id="rl-b" placeholder="little sister, student, daughter…"></div>
+        <button type="button" class="link" id="rl-join">The same for both</button></div>
       <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="rl-go">Add</button></div>`, { cls: 'small' });
     el.addEventListener('click', e => {
       const ch = e.target.closest('[data-to]');
@@ -262,13 +266,25 @@ const Project = (() => {
         pick = ch.dataset.to;
         $$('[data-to]', el).forEach(b => b.classList.toggle('on', b === ch));
         const n = charById(pick).name;
-        $('#rl-who').textContent = n;
+        $$('.rl-name', el).forEach(x => { x.textContent = n; });
+        $('#rl-pair').textContent = `${n} and ${c.name}`;
+        $('#rl-are').textContent = 'is'; // (“They are…” until someone is picked)
         $('#rl-who2').textContent = n + '’s';
       }
+      // one wording for both (the usual: in love, best friends) or a different one each way
+      const two = on => {
+        $('#rl-one').hidden = on; $('#rl-two').hidden = !on;
+        if (on && !$('#rl-a').value) { $('#rl-a').value = $('#rl-both').value; }
+        if (!on && !$('#rl-both').value) $('#rl-both').value = $('#rl-a').value;
+        setTimeout(() => $(on ? '#rl-a' : '#rl-both').focus(), 30);
+      };
+      if (e.target.closest('#rl-split')) return two(true);
+      if (e.target.closest('#rl-join')) return two(false);
       if (e.target.closest('#rl-go')) {
         if (!pick) return toast('Pick who first.');
-        const a = $('#rl-a').value.trim(), b = $('#rl-b').value.trim() || a;
-        // each side gets its own wording
+        const split = !$('#rl-two').hidden;
+        const a = (split ? $('#rl-a') : $('#rl-both')).value.trim(), b = (split && $('#rl-b').value.trim()) || a;
+        // each side gets its own wording (the same one when it's the same both ways)
         const o = charById(pick);
         c.rels = [...(c.rels || []).filter(r => r.to !== pick), { to: pick, label: a }];
         o.rels = [...(o.rels || []).filter(r => r.to !== c.id), { to: c.id, label: b }];
