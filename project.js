@@ -182,6 +182,7 @@ const Project = (() => {
         <div class="cp-side">
           ${photo(c, 'big')}
           <div class="row"><button class="btn quiet small" data-a="char-photo">${icon('photo')} ${c.photoId ? 'Change photo' : 'Add a photo'}</button>
+          <button class="btn quiet small" data-a="char-paste" title="Paste a copied photo (or press ⌘V)">${icon('copy')} Paste</button>
           ${c.photoId ? `<button class="btn quiet small danger-text" data-a="char-photo-rm">Remove</button>` : ''}</div>
           <div id="cp-pins"></div>
         </div>
@@ -204,6 +205,17 @@ const Project = (() => {
       </div>`;
     $$('textarea', box).forEach(auto);
     fillImgs(box);
+    // a photo dropped anywhere on their page becomes their photo (bound to this page's own element,
+    // so it goes away with it)
+    const cp = box.querySelector('.char-page');
+    const isFiles = e => e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
+    cp.ondragover = e => { if (isFiles(e)) { e.preventDefault(); cp.classList.add('photo-over'); } };
+    cp.ondragleave = e => { if (!cp.contains(e.relatedTarget)) cp.classList.remove('photo-over'); };
+    cp.ondrop = e => {
+      cp.classList.remove('photo-over');
+      const f = isFiles(e) && Array.from(e.dataTransfer.files).find(x => x.type.startsWith('image/'));
+      if (f) { e.preventDefault(); e.stopPropagation(); charPhoto(c, f); } // (not also onto the board, if it was open before)
+    };
     drawCharSide();
   }
   function relsHtml(c) {
@@ -219,8 +231,9 @@ const Project = (() => {
     box.innerHTML = pins.length ? `<div class="cp-pins-head">On the board</div><div class="cp-pins">${pins.slice(0, 9).map(p => `<a href="#/p/${O.pid}/board" class="cp-pin"><img data-img="${p.imageId}" alt=""></a>`).join('')}</div>` : '';
     fillImgs(box);
   }
-  async function charPhoto(c) {
-    const f = await pickFile('image/*');
+  // a character's photo: picked (Add a photo), pasted (Paste or ⌘V on their page) or dropped on it
+  async function charPhoto(c, file) {
+    const f = file || await pickFile('image/*');
     if (!f) return;
     try {
       const img = await prepPhoto(f, 900, 400000);
@@ -464,22 +477,39 @@ const Project = (() => {
     }
     toast(files.length > 1 ? 'Photos added' : 'Photo added');
   }
+  // photos on the clipboard (the Paste buttons)
+  async function clipPhotos() {
+    const items = await navigator.clipboard.read();
+    const files = [];
+    for (const it of items) {
+      const type = it.types.find(t => t.startsWith('image/'));
+      if (type) files.push(new File([await it.getType(type)], 'pasted', { type }));
+    }
+    return files;
+  }
+  const NO_PHOTO = 'No photo copied yet. On Pinterest, right-click (or press and hold) a photo → Copy image.';
   async function pasteButton() {
     try {
-      const items = await navigator.clipboard.read();
-      const files = [];
-      for (const it of items) {
-        const type = it.types.find(t => t.startsWith('image/'));
-        if (type) files.push(new File([await it.getType(type)], 'pasted', { type }));
-      }
-      if (!files.length) return toast('No photo copied yet. On Pinterest, right-click (or press and hold) a photo → Copy image.');
+      const files = await clipPhotos();
+      if (!files.length) return toast(NO_PHOTO);
       addPhotos(files);
     } catch (e) { toast('Copy a photo first, then press Paste (or ⌘V).'); }
   }
+  async function pasteCharPhoto(c) {
+    try {
+      const files = await clipPhotos();
+      if (!files.length) return toast(NO_PHOTO);
+      charPhoto(c, files[0]);
+    } catch (e) { toast('Copy a photo first, then press Paste (or ⌘V).'); }
+  }
   function onPaste(e) {
-    if (!O || O.tab !== 'board' || UI.sheetOpen()) return;
-    const files = Array.from(e.clipboardData && e.clipboardData.files || []);
-    if (files.length) { e.preventDefault(); addPhotos(files); }
+    if (!O || UI.sheetOpen()) return;
+    const files = Array.from(e.clipboardData && e.clipboardData.files || []).filter(f => f.type.startsWith('image/'));
+    if (!files.length) return;
+    if (O.tab === 'board') { e.preventDefault(); addPhotos(files); return; }
+    // on a character's page (not while typing in one of their boxes): it becomes their photo
+    const c = O.tab === 'chars' && O.sub && charById(O.sub);
+    if (c && !(e.target.closest && e.target.closest('input, textarea, [contenteditable="true"]'))) { e.preventDefault(); charPhoto(c, files[0]); }
   }
   function bindDrop(box) {
     const hint = $('#drop-hint');
@@ -638,6 +668,7 @@ const Project = (() => {
     const c = O.sub && charById(O.sub);
     if (!c) return;
     if (A === 'char-photo') return charPhoto(c);
+    if (A === 'char-paste') return pasteCharPhoto(c);
     if (A === 'char-photo-rm') { const old = c.photoId; c.photoId = ''; saveChar(c); flushChar(); if (old && !O.pins.some(p => p.imageId === old)) O.ctx.api.deleteImage(old); return draw(true); }
     if (A === 'detail-add') { c.details = [...(c.details || []), { label: '', value: '' }]; saveChar(c); flushChar(); draw(true); setTimeout(() => { const ins = $$('#cp-details [data-d="label"]'); if (ins.length) ins[ins.length - 1].focus(); }, 30); return; }
     if (A === 'detail-rm') { const i = +a.closest('.cp-detail').dataset.i; c.details.splice(i, 1); saveChar(c); flushChar(); return draw(true); }

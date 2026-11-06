@@ -173,6 +173,7 @@ main#view { min-height: 60vh; }
 .char-card b { font-family: var(--title-font); font-size: calc(21px * var(--ts)); margin-top: 6px; }
 .char-card .nick { font-family: var(--body-font); font-style: italic; color: var(--ink-soft); font-size: 15px; }
 .char-card .meta { font-size: 13px; color: var(--ink-faint); }
+.char-page.photo-over .cphoto.big { outline: 3px dashed var(--accent); outline-offset: 4px; } /* (a photo being dragged onto a character's page) */
 .cphoto { width: 84px; height: 84px; border-radius: 50%; overflow: hidden; background: var(--accent-soft); color: var(--accent-deep); display: flex; align-items: center; justify-content: center; font-family: var(--title-font); font-size: 30px; font-weight: 600; flex: none; }
 .cphoto img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .25s; }
 .cphoto img.loaded { opacity: 1; }
