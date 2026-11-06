@@ -885,7 +885,7 @@
       </section>
       <section class="card">
         <h2>${icon('photo')} Your links</h2>
-        <p class="muted">The Pinterest and Canva buttons on a vision board open these (unless the project has its own).</p>
+        <p class="muted">The Pinterest button on a vision board opens this (unless the project has its own).</p>
         <div class="field"><label for="st-pin">Pinterest</label><input class="input" id="st-pin" inputmode="url" value="${esc(st.pinterest || '')}" placeholder="https://www.pinterest.com/yourname"></div>
         <div class="field"><label for="st-canva">Canva</label><input class="input" id="st-canva" inputmode="url" value="${esc(st.canva || '')}" placeholder="https://www.canva.com/"></div>
       </section>

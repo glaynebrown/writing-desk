@@ -425,7 +425,6 @@ const Project = (() => {
     box.innerHTML = `<div class="ps-head"><h1>Vision board</h1>
         <div class="head-btns">
           <a class="btn quiet" href="${esc(safe(p.pinterest) || safe(st.pinterest) || 'https://www.pinterest.com/')}" target="_blank" rel="noopener">${icon('pinterest')} Pinterest</a>
-          <a class="btn quiet" href="${esc(safe(p.canva) || safe(st.canva) || 'https://www.canva.com/')}" target="_blank" rel="noopener">${icon('canva')} Canva</a>
           <button class="btn quiet" data-a="pin-paste" title="Paste a copied photo">${icon('copy')} Paste</button>
           <button class="btn icon-btn" data-a="pin-add" title="Add photos" aria-label="Add photos">${icon('plus')}</button>
         </div></div>
