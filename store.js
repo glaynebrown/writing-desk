@@ -7,7 +7,7 @@
                                       pageSize {w, h} (inches), sceneBreak, words, createdAt, updatedAt }
      users/{uid}/chapters/{cid}     { pid, title, order, html, words, notes (chapter notes),
                                       mnotes {id: {text, at}} (margin notes), updatedAt }
-     users/{uid}/images/{iid}       { data (a compressed photo as a data URL) | enc (locked), w, h, pid }
+     users/{uid}/images/{iid}       { data (a compressed photo as a data URL), w, h, pid }  (older locked ones: enc)
      users/{uid}/chars/{id}         a character: { pid, order, name, nick, age, role, photoId, traits, personality,
                                       habits, goals, fears, backstory, remindsOf, details [{label, value}], rels [{to, label}] }
      users/{uid}/events/{id}        a timeline event: { pid, order, title, when, text, chapters [cid], chars [id] }

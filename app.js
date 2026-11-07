@@ -169,6 +169,7 @@
       if (!$('#top').hidden) $('#top').hidden = true;
       document.body.classList.toggle('in-project', true); // (toggle: no restyle when it's already on)
       if (isLockedPid(p.id) && !Vault.isOpen()) { Editor.close(); Project.close(); paint(); if (!fromData || !$('#unlock-pass')) unlockScreen(p); return; }
+      if (isLockedPid(p.id)) LAPI.plainPhotos(p.id, p.coverId, bgPhotoIds(p)); // older scrambled photos → plain (once)
       const tab = m[2] || 'write';
       if (tab !== 'write') {
         // (a short piece without characters/timeline turned on only has Write + Board)
@@ -307,7 +308,7 @@
         <button data-m="import">${icon('word')}<span><b>Bring in a Word file</b><small>From Google Drive: File → Download → Word</small></span></button>
         <button data-m="export">${icon('kindle')}<span><b>Export for Kindle</b><small>An EPUB ebook</small></span></button>
         ${p.locked ? `<button data-m="unlockgood">${icon('lock')}<span><b>Unlock for good</b><small>Take the lock off this project</small></span></button>`
-          : `<button data-m="lock">${icon('lock')}<span><b>Lock this project</b><small>Scrambled with your passphrase — no one else can read it</small></span></button>`}
+          : `<button data-m="lock">${icon('lock')}<span><b>Lock this project</b><small>Your writing is scrambled with your passphrase — no one else can read it</small></span></button>`}
         <button data-m="hist">${icon('undo')}<span><b>History &amp; deleting</b><small>Earlier versions, deleted chapters, delete</small></span>${icon('back', 'ap-chev')}</button>
       </div>`;
     // the bring-it-back options first; the ones that can't be undone last, below a line
@@ -769,8 +770,8 @@
       render();
     });
   }
-  // a background photo she uploaded for this project is locked along with it
-  // (and so is her own scene-break picture)
+  // a background photo she uploaded for this project, and her own scene-break picture
+  // (photos aren't scrambled any more; these ids are for unscrambling older ones -- vault.js)
   const bgPhotoIds = p => { const ph = Backdrop.norm((p.look || {}).bg).photo; return [ph && ph.imageId, p.sceneImg].filter(Boolean); };
   async function lockProject(p) {
     if (!Vault.isSetUp()) { if (!(await setupSheet())) return; }

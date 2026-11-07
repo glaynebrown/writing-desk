@@ -13,8 +13,10 @@
    A locked chapter is saved as { pid, order, enc: "q1:<iv>:<data>" } where
    the scrambled data holds { title, html, words, notes, mnotes }. Characters,
    timeline events, board photos and project ideas are saved as { pid, order, createdAt, enc }
-   with everything else inside enc; a locked photo is { pid, w, h, enc }.
-   (The cover stays readable -- it shows on the library shelf.)
+   with everything else inside enc.
+   Photos are NOT scrambled (her choice, 2026-11-06): the lock screen hiding them is enough.
+   Photos scrambled before then ({ pid, w, h, enc }) are saved back plain the next time
+   the project is opened with the passphrase (plainPhotos).
 
    Vault.wrap(api) gives the screens the same database calls as store.js,
    scrambling and unscrambling locked chapters on the way through. */
@@ -110,8 +112,7 @@ const Vault = (() => {
     key = null;
     if (raw) raw.fill(0);
     raw = null;
-    memo.clear();
-    changed();
+    changed(); // (the screens' unscrambled copies are dropped by their onChange listeners)
   }
   const onChange = f => { listeners.add(f); return () => listeners.delete(f); };
   const onBeforeLock = f => { before.add(f); return () => before.delete(f); };
@@ -136,15 +137,11 @@ const Vault = (() => {
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, k, enc.encode(JSON.stringify(obj))));
     return 'q1:' + b64(iv) + ':' + b64(ct);
   }
-  const memo = new Map();
   async function open(str) {
-    if (memo.has(str)) return memo.get(str);
     const k = key;
     if (!k) throw new Error('Locked');
     const [, iv, ct] = str.split(':');
-    const obj = JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, k, unb64(ct))));
-    memo.set(str, obj);
-    return obj;
+    return JSON.parse(dec.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(iv) }, k, unb64(ct))));
   }
 
   // ---- the database calls, with locked chapters scrambled ----
@@ -155,9 +152,21 @@ const Vault = (() => {
 
   function wrap(api, isLocked) {
     const plain = {}; // cid -> the chapter as I last knew it, unscrambled
+    // The newest unscrambled copy of each chapter / entry, so the same one isn't unscrambled again
+    // on every update. Only the newest: keeping every saved version (as it used to) filled Chrome's
+    // memory during a long session, and Chrome then redrew the background photo (a bright flash).
+    const seen = {};
+    async function openOnce(slot, str) {
+      const h = seen[slot];
+      if (h && h.enc === str) return h.obj;
+      const obj = await open(str);
+      seen[slot] = { enc: str, obj };
+      return obj;
+    }
+    onChange(isOpenNow => { if (!isOpenNow) Object.keys(seen).forEach(k => delete seen[k]); });
     async function unpack(doc) {
       if (!doc.enc) return doc;
-      const s = await open(doc.enc);
+      const s = await openOnce('chapters/' + doc.id, doc.enc);
       const out = { ...doc, ...s };
       delete out.enc;
       return out;
@@ -214,9 +223,9 @@ const Vault = (() => {
     };
     // ---- characters, events, board photos ----
     const OPEN = ['pid', 'order', 'createdAt'];
-    async function unpackDoc(d) {
+    async function unpackDoc(d, name = '') {
       if (!d.enc) return d;
-      const s = await open(d.enc);
+      const s = await openOnce(name + '/' + d.id, d.enc);
       return { ...s, id: d.id, pid: d.pid, order: d.order, createdAt: d.createdAt };
     }
     async function packDoc(d, k) {
@@ -231,12 +240,12 @@ const Vault = (() => {
       return api.watchCol(name, pid, async list => {
         const mine = ++n;
         if (!key) return;
-        try { const out = await Promise.all(list.map(unpackDoc)); if (mine === n) cb(out); } catch (e) { console.warn('unlock', name, e); }
+        try { const out = await Promise.all(list.map(d => unpackDoc(d, name))); if (mine === n) cb(out); } catch (e) { console.warn('unlock', name, e); }
       });
     };
     W.listCol = async (name, pid) => {
       const list = await api.listCol(name, pid);
-      return isLocked(pid) ? Promise.all(list.map(unpackDoc)) : list;
+      return isLocked(pid) ? Promise.all(list.map(d => unpackDoc(d, name))) : list;
     };
     // data must hold pid. Returns the id (a Promise when locked).
     W.addDoc = (name, data) => {
@@ -252,13 +261,10 @@ const Vault = (() => {
       docChains[c] = (docChains[c] || Promise.resolve()).then(async () => { api.setDoc(name, id, await packDoc(full, k)); }).catch(e => console.error(e));
       return docChains[c];
     };
-    // photos: data URLs scrambled when the project is locked (never the cover)
+    // photos: saved plain, locked project or not (an older scrambled one is unscrambled here,
+    // and saved back plain by plainPhotos)
     const pics = {};
-    W.putImage = img => {
-      if (!img.pid || !isLocked(img.pid) || img.cover) { const o = { ...img }; delete o.cover; return api.putImage(o); }
-      const k = key;
-      return seal(img.data, k).then(enc => { const id = api.putImage({ pid: img.pid, w: img.w || 0, h: img.h || 0, enc }); pics[id] = img.data; return id; });
-    };
+    W.putImage = img => { const o = { ...img }; delete o.cover; return api.putImage(o); };
     W.getImage = async id => {
       if (!id) return '';
       if (pics[id]) return pics[id];
@@ -288,10 +294,20 @@ const Vault = (() => {
       for (const name of ['chars', 'events', 'pins', 'pideas', 'maps', 'places', 'versions']) {
         for (const d of await api.listCol(name, pid)) if (!d.enc) api.setDoc(name, d.id, await packDoc(d, key));
       }
-      for (const id of await imageIds(pid, coverId, extra)) {
-        const d = await api.getImageDoc(id);
-        if (d && d.data && !d.enc) api.saveImage(id, { pid, w: d.w || 0, h: d.h || 0, enc: await seal(d.data) });
-      }
+      // (photos stay plain)
+    };
+    // Photos scrambled before photos stopped being locked: save them back plain (once per project
+    // per visit; needs the passphrase entered). The cover was never scrambled.
+    const plainDone = new Set();
+    W.plainPhotos = async (pid, coverId, extra = []) => {
+      if (!key || plainDone.has(pid)) return;
+      plainDone.add(pid);
+      try {
+        for (const id of await imageIds(pid, coverId, extra)) {
+          const d = await api.getImageDoc(id);
+          if (d && d.enc) { const data = await open(d.enc); pics[id] = data; api.saveImage(id, { pid, w: d.w || 0, h: d.h || 0, data }); }
+        }
+      } catch (e) { plainDone.delete(pid); console.warn('plain photos', e); }
     };
     // photos that belong to a project: board, character and map photos, and an uploaded background (not the cover)
     async function imageIds(pid, coverId, extra = []) {

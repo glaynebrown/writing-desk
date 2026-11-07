@@ -3,8 +3,8 @@
    users/{uid}/maps/{id}    { pid, imageId, w, h, createdAt }   (one per project)
    users/{uid}/places/{id}  { pid, order, x, y (0–1, across and down the map), name, kind,
                               notes, chapters [cid], chars [id], events [id] }
-   The map photo is in images/ with the project's pid, so a locked project scrambles
-   it -- and its places -- like everything else (vault.js).
+   The map photo is in images/ with the project's pid. A locked project scrambles its places
+   like everything else (vault.js); the photo itself stays plain (photos aren't scrambled).
 
    Moving around: drag to move, pinch (iPhone) or pinch / ⌘-scroll (Mac trackpad) to zoom,
    the + / − / fit buttons, or tap a place in the list to fly to it. */
