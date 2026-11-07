@@ -764,9 +764,9 @@ a.pop-item { text-decoration: none; color: var(--ink); }
 .backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; display: none; overflow: hidden; }
 body.bg-on .backdrop { display: block; }
 body.bg-on #view { position: relative; z-index: 1; }
-/* (its own layer, so the browser keeps the drawn photo instead of redrawing it after the window was minimized;
-   if it does redraw, the photo's own color, --bd-tint, shows behind it for that moment instead of a white blink) */
-.bd-img { position: absolute; inset: calc(var(--bd-blur, 0px) * -2); background: center / cover no-repeat; opacity: 0; transition: opacity .6s; filter: blur(var(--bd-blur, 0px)); will-change: transform; transform: translateZ(0); }
+/* (when the browser has to redraw the photo, e.g. after the window was minimized, the photo's own color,
+   --bd-tint, shows behind it for that moment instead of a white blink) */
+.bd-img { position: absolute; inset: calc(var(--bd-blur, 0px) * -2); background: center / cover no-repeat; opacity: 0; transition: opacity .6s; filter: blur(var(--bd-blur, 0px)); }
 body.bg-photo:not(.bg-soft) .backdrop { background: var(--bd-tint, transparent); }
 .bd-img.ready { opacity: 1; }
 .bd-dim { position: absolute; inset: 0; background: rgba(18, 12, 6, var(--bd-dim, 0)); display: none; }
