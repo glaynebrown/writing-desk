@@ -64,6 +64,27 @@ const Backdrop = (() => {
     canvas = layer.querySelector('.bd-fx');
   }
 
+  // The photo's average color, painted behind it: when the browser has to redraw the photo
+  // (coming back after the window was minimized) you see this for a moment instead of a white blink.
+  function tint(src) {
+    return new Promise(res => {
+      const im = new Image();
+      if (/^https?:/.test(src)) im.crossOrigin = 'anonymous';
+      im.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = c.height = 1;
+          const x = c.getContext('2d');
+          x.drawImage(im, 0, 0, 1, 1);
+          const [r, g, b] = x.getImageData(0, 0, 1, 1).data;
+          res(`rgb(${r}, ${g}, ${b})`);
+        } catch (e) { res(''); }
+      };
+      im.onerror = () => res('');
+      im.src = src;
+    });
+  }
+
   /* apply(look, night, { on, getImage }) -- on: one of the project's tabs is showing */
   const CLASSES = ['bg-on', 'bg-photo', 'bg-around', 'bg-glass', 'bg-soft', 'bg-bare', 'bg-none'];
   let last = null;
@@ -88,12 +109,16 @@ const Backdrop = (() => {
       shown = key;
       img.style.backgroundImage = '';
       img.classList.remove('ready');
+      layer.style.removeProperty('--bd-tint');
       if (photo) {
         const set = src => {
           if (!src || shown !== key) return;
           const pre = new Image();
           pre.onload = () => { if (shown !== key) return; img.style.backgroundImage = `url("${src}")`; img.classList.add('ready'); };
           pre.src = src;
+          // a starter's color comes from a tiny copy of it (the big one is saved for offline in a way
+          // that can't be read back); her own photos are already on the device
+          tint(bg.photo.starter ? starterUrl(bg.photo.starter, 16) : src).then(c => { if (c && shown === key) layer.style.setProperty('--bd-tint', c); });
         };
         if (bg.photo.starter) set(starterUrl(bg.photo.starter));
         else if (bg.photo.imageId && opts.getImage) opts.getImage(bg.photo.imageId).then(set);
