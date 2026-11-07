@@ -387,17 +387,22 @@ const Editor = (() => {
       add.dataset.act = 'add-chapter';
       add.innerHTML = `${icon('plus')} Add a chapter`;
     }
-    paper.appendChild(add);
+    if (paper.lastChild !== add) paper.appendChild(add);
   }
 
   function renderList() {
     const ol = $('#chlist');
     if (!ol) return;
     const nums = numbering();
-    ol.innerHTML = P.chapters.map((c, i) => `<li class="chrow ${P.current === c.id ? 'on' : ''}" data-cid="${c.id}">
+    const html = P.chapters.map((c, i) => `<li class="chrow ${P.current === c.id ? 'on' : ''}" data-cid="${c.id}">
       ${chnHtml(c, nums[i])}<span class="cht">${esc(c.title || 'Untitled chapter')}</span><span class="chw">${num(c.words || 0)}</span>
       <button class="chnote ${(c.notes || '').trim() ? 'has' : ''}" data-cnote="${c.id}" data-nodrag title="Chapter notes" aria-label="Chapter notes">${icon('notes')}</button>
     </li>`).join('');
+    // Rebuilt only when something besides the word counts changed (rebuilding the frosted list over
+    // the photo after every save made it blink); new word counts just change those numbers.
+    const shape = html.replace(/<span class="chw">[^<]*<\/span>/g, '');
+    if (ol._shape !== shape) { ol.innerHTML = html; ol._shape = shape; return; }
+    P.chapters.forEach(c => { const w = ol.querySelector(`.chrow[data-cid="${c.id}"] .chw`), t = num(c.words || 0); if (w && w.textContent !== t) w.textContent = t; });
   }
 
   function renderWords() {
@@ -642,7 +647,7 @@ const Editor = (() => {
   }
   function renumber() {
     let n = 1;
-    $$('#paper .pcard .pnum').forEach(s => { s.textContent = n++; });
+    $$('#paper .pcard .pnum').forEach(s => { const t = String(n++); if (s.textContent !== t) s.textContent = t; });
     if (P && P.paged) setPages(n - 1);
   }
 
@@ -1203,27 +1208,39 @@ const Editor = (() => {
     if (!box || !dots) return;
     const items = narrow() ? [] : noteItems();
     const cards = !!box.offsetParent;
-    $$('.mcard', box).forEach(c => c.remove());
-    dots.innerHTML = '';
+    // The notes already showing are kept and only moved: taking them all away and drawing them again
+    // after every pause in typing made Chrome redraw the frosted cards over the photo (a bright blink).
+    const setPx = (el, prop, v) => { if (el.style[prop] !== v + 'px') el.style[prop] = v + 'px'; };
     if (cards) {
+      if (dots.firstChild) dots.innerHTML = '';
       const base = box.getBoundingClientRect().top;
-      box.insertAdjacentHTML('beforeend', items.map(it => `<button class="mcard" data-n="${it.id}">${esc(it.text)}</button>`).join(''));
+      let list = $$('.mcard', box);
+      if (!(list.length === items.length && list.every((c, i) => c.dataset.n === items[i].id && c.textContent === items[i].text))) {
+        list.forEach(c => c.remove());
+        box.insertAdjacentHTML('beforeend', items.map(it => `<button class="mcard" data-n="${it.id}">${esc(it.text)}</button>`).join(''));
+        list = $$('.mcard', box);
+      }
       let y = -Infinity;
-      $$('.mcard', box).forEach((card, i) => {
+      list.forEach((card, i) => {
         const top = Math.max(items[i].y - base - 4, y + 10);
-        card.style.top = top + 'px';
+        setPx(card, 'top', top);
         y = top + card.offsetHeight;
       });
     } else {
+      $$('.mcard', box).forEach(c => c.remove());
       const wrap = dots.parentNode.getBoundingClientRect();
       const paper = $('#paper').getBoundingClientRect();
       const left = paper.right - wrap.left - (narrow() ? 24 : 34);
       let y = -Infinity;
-      dots.innerHTML = items.map(it => `<button class="mdot" data-n="${it.id}" title="${esc(it.text)}">${icon('note')}</button>`).join('');
-      $$('.mdot', dots).forEach((d, i) => {
+      let list = $$('.mdot', dots);
+      if (!(list.length === items.length && list.every((d, i) => d.dataset.n === items[i].id && d.title === items[i].text))) {
+        dots.innerHTML = items.map(it => `<button class="mdot" data-n="${it.id}" title="${esc(it.text)}">${icon('note')}</button>`).join('');
+        list = $$('.mdot', dots);
+      }
+      list.forEach((d, i) => {
         const top = Math.max(items[i].y - wrap.top, y + 24);
-        d.style.top = top + 'px';
-        d.style.left = left + 'px';
+        setPx(d, 'top', top);
+        setPx(d, 'left', left);
         y = top;
       });
     }

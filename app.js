@@ -48,11 +48,12 @@
       document.documentElement.style.setProperty('--fs-user', { s: 0.92, m: 1, l: 1.1, xl: 1.2 }[settings().textSize || 'm']);
       ls.set('qc-paint', JSON.stringify({ look, night }));
     }
+    // (only the buttons whose look changed: redrawing them after every save made the header blink)
+    const sunset = (settings().night || {}).mode === 'sunset', want = night ? 'sun' : 'moon';
     $$('[data-act="night"]').forEach(b => {
       b.classList.toggle('on', !!night);
-      b.hidden = (settings().night || {}).mode === 'sunset';
-      b.innerHTML = icon(night ? 'sun' : 'moon');
-      b.title = night ? 'Day mode' : 'Night mode';
+      if (b.hidden !== sunset) b.hidden = sunset;
+      if (b.dataset.ic !== want) { b.dataset.ic = want; b.innerHTML = icon(want); b.title = night ? 'Day mode' : 'Night mode'; }
     });
   }
   function toggleNight() {
@@ -165,7 +166,7 @@
     if (m) {
       const p = S.projects.find(x => x.id === m[1]);
       if (!p) { if (!fromData) go('#/shelf'); return; }
-      $('#top').hidden = true;
+      if (!$('#top').hidden) $('#top').hidden = true;
       document.body.classList.toggle('in-project', true); // (toggle: no restyle when it's already on)
       if (isLockedPid(p.id) && !Vault.isOpen()) { Editor.close(); Project.close(); paint(); if (!fromData || !$('#unlock-pass')) unlockScreen(p); return; }
       const tab = m[2] || 'write';

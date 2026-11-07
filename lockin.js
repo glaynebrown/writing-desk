@@ -86,9 +86,9 @@ const Lockin = (() => {
   function render() {
     if (!chip) return;
     const s = C && C.signedIn() ? now() : null;
-    chip.hidden = !s;
+    if (chip.hidden !== !s) chip.hidden = !s;
     chip.classList.toggle('running', !!s && s.mode === 'run');
-    if (!s) { chip.innerHTML = ''; return; }
+    if (!s) { if (chip.firstChild) chip.innerHTML = ''; return; }
     const html = s.mode === 'run'
       ? `${icon('hourglass')}<span class="li-time">${clock(s.end - Date.now())}</span><button data-li="pause" title="Pause" aria-label="Pause">${icon('pause')}</button><button data-li="end" title="End" aria-label="End">${icon('stop')}</button>`
       : `${icon('hourglass')}<span>Lock in paused · ${mins(s.left)} left</span><button class="li-go" data-li="resume">${icon('play')} Resume</button><button data-li="end" title="End" aria-label="End">${icon('x')}</button>`;
