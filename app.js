@@ -31,16 +31,23 @@
   }
   // false | true (warm sepia) | 'walnut' (Settings → Night mode → style)
   const nightLook = () => (nightNow() ? ((settings().night || {}).style === 'walnut' ? 'walnut' : true) : false);
+  let painted = ''; // the look last applied (see paint)
   function paint() {
     const night = nightLook();
     const p = currentProject();
     const look = lookPreview || (p ? p.look : Themes.APP);
-    Themes.apply(look, night);
     // a background photo / effect behind every tab of a project (backdrop.js)
     const inProject = !!p && !(isLockedPid(p.id) && !Vault.isOpen());
-    Backdrop.apply(look, night, { on: inProject, getImage: id => LAPI.getImage(id) });
-    document.documentElement.style.setProperty('--fs-user', { s: 0.92, m: 1, l: 1.1, xl: 1.2 }[settings().textSize || 'm']);
-    ls.set('qc-paint', JSON.stringify({ look, night }));
+    // only when something in the look changed: re-applying it for nothing (every word-count save)
+    // made the Mac redraw the background photo, which flashed white now and then
+    const sig = JSON.stringify([look, night, inProject, UI.narrow(), settings().textSize || 'm']);
+    if (sig !== painted) {
+      painted = sig;
+      Themes.apply(look, night);
+      Backdrop.apply(look, night, { on: inProject, getImage: id => LAPI.getImage(id) });
+      document.documentElement.style.setProperty('--fs-user', { s: 0.92, m: 1, l: 1.1, xl: 1.2 }[settings().textSize || 'm']);
+      ls.set('qc-paint', JSON.stringify({ look, night }));
+    }
     $$('[data-act="night"]').forEach(b => {
       b.classList.toggle('on', !!night);
       b.hidden = (settings().night || {}).mode === 'sunset';
@@ -124,6 +131,7 @@
 
   function welcome() {
     Themes.apply(Themes.APP, false);
+    painted = '';
     $('#top').hidden = true;
     view.innerHTML = `<div class="welcome">
       <img class="welcome-mark" src="candle.webp" alt="">
@@ -158,7 +166,7 @@
       const p = S.projects.find(x => x.id === m[1]);
       if (!p) { if (!fromData) go('#/shelf'); return; }
       $('#top').hidden = true;
-      document.body.classList.add('in-project');
+      document.body.classList.toggle('in-project', true); // (toggle: no restyle when it's already on)
       if (isLockedPid(p.id) && !Vault.isOpen()) { Editor.close(); Project.close(); paint(); if (!fromData || !$('#unlock-pass')) unlockScreen(p); return; }
       const tab = m[2] || 'write';
       if (tab !== 'write') {

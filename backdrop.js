@@ -76,9 +76,9 @@ const Backdrop = (() => {
     const vid = on && bg.style !== 'none' && bg.video && bg.video.id && !UI.narrow() && navigator.onLine && !Video.failed(bg.video.id) ? bg.video : null;
     const photo = on && (hasPhoto(bg) || !!vid);
     const style = !photo ? 'none' : UI.narrow() ? 'soft' : bg.style;
-    document.body.classList.remove(...CLASSES);
-    if (on) document.body.classList.add('bg-on', 'bg-' + style);
-    if (photo) document.body.classList.add('bg-photo');
+    // (only the classes that change: taking them all off and back on makes the photo redraw)
+    const want = on ? ['bg-on', 'bg-' + style].concat(photo ? ['bg-photo'] : []) : [];
+    CLASSES.forEach(c => document.body.classList.toggle(c, want.includes(c)));
     const dim = Math.min(0.85, (style === 'bare' ? Math.max(0.45, bg.dim) : bg.dim) + (night ? 0.2 : 0));
     layer.style.setProperty('--bd-dim', dim);
     layer.style.setProperty('--bd-blur', (Number(bg.blur) || 0) + 'px');
