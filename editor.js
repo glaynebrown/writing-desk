@@ -805,6 +805,12 @@ const Editor = (() => {
     if (e.key === 'Escape' && P.focus && !P.locked && !UI.sheetOpen()) toggleFocus();
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); flushAll(); toast('Saved'); }
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'f' && !UI.sheetOpen()) { e.preventDefault(); Find.open(); }
+    // ⌘B / ⌘I / ⌘U in the writing: done here, so Safari doesn't take them for its menus (⌘I = Email This Page)
+    const style = { b: 'bold', i: 'italic', u: 'underline' }[(e.key || '').toLowerCase()];
+    if (style && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.target.closest && e.target.closest('.chap-body[contenteditable="true"]')) {
+      e.preventDefault();
+      document.execCommand(style);
+    }
   }
 
   // "***" (or # or ~~~) on its own line + Enter = a scene break.
