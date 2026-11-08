@@ -166,6 +166,7 @@ const Editor = (() => {
       root, ctx, project, pid: project.id,
       chapters: [], byId: {}, state: {}, // state[cid] = { dirty, timer, lastHtml }
       unsub: null, pending: false, current: null, totalT: null, notesOpen: false, focus: false,
+      blur: !!Themes.norm(project.look).blurType, blurDefault: !!Themes.norm(project.look).blurType,
     };
     ownScene(project, ctx.api);
     root.innerHTML = shell(project);
@@ -222,6 +223,9 @@ const Editor = (() => {
     document.removeEventListener('selectionchange', onSelection);
     document.body.classList.remove('focus-mode');
     closePopover();
+    clearTimeout(blurRaf);
+    const bb = $('#blurbox');
+    if (bb) bb.remove();
     P = null;
   }
   const isOpen = pid => !!P && P.pid === pid;
@@ -235,11 +239,14 @@ const Editor = (() => {
     $('#p-title').textContent = project.title || 'Untitled';
     P.root.querySelector('.proj').classList.toggle('short', project.kind === 'short');
     P.root.querySelector('.proj').classList.toggle('no-extras', !Project.showsAll(project));
+    // Appearance → "Blur my words as I type" changed: follow it
+    const bd = !!Themes.norm(project.look).blurType;
+    if (bd !== P.blurDefault) { P.blurDefault = bd; setBlur(bd); }
   }
 
   function shell(p) {
     const tb = (act, ic, label, cls = '') => `<button class="tb ${cls}" data-act="${act}" title="${label}" aria-label="${label}">${ic}</button>`;
-    return `<div class="proj ${p.kind === 'short' ? 'short' : ''} ${Project.showsAll(p) ? '' : 'no-extras'} ${ls.get('qc-side') === 'off' ? 'side-off' : ''}">
+    return `<div class="proj ${p.kind === 'short' ? 'short' : ''} ${Project.showsAll(p) ? '' : 'no-extras'} ${ls.get('qc-side') === 'off' ? 'side-off' : ''} ${P.blur ? 'blur-type' : ''}">
       <header class="ptop">
         <a class="back" href="#/shelf" title="Library" aria-label="Back to Library">${icon('back')}</a>
         <div class="ptitle"><span id="p-title">${esc(p.title || 'Untitled')}</span><span class="pstat"><span id="p-words"></span><span id="p-sync" class="sync"></span></span></div>
@@ -267,6 +274,7 @@ const Editor = (() => {
         <span class="tsep"></span>
         ${tb('pages', icon('pages'), 'Pages — see it as a printed book')}
         ${tb('focus', icon('focus'), 'Focus mode', 'hide-narrow')}
+        ${tb('blur', icon('blur'), 'Blur my words as I type — all but the line I’m on', P.blur ? 'on' : '')}
         <button class="tb read-btn" data-act="read" title="Read it as a book — real pages you turn" aria-label="Read as a book">${icon('read')}</button>
         ${tb('lockin', icon('hourglass'), 'Lock in — 30 minutes or an hour of just writing')}
       </div></div>
@@ -512,6 +520,7 @@ const Editor = (() => {
     if (P.paged && (!was || Math.abs(z - P.z) > 0.005)) paginateAll();
     alignTools();
     layoutNotes();
+    if (P.blur) placeBlur();
   }
   function onResize() {
     clearTimeout(P.resizeT);
@@ -644,6 +653,7 @@ const Editor = (() => {
       }
     }
     if (!quiet) renumber();
+    if (P.blur) placeBlur();
   }
   function renumber() {
     let n = 1;
@@ -730,6 +740,7 @@ const Editor = (() => {
       markDirty(sec.dataset.cid);
       schedulePage(sec.dataset.cid);
       Find.refresh();
+      if (P.blur) placeBlur();
       clearTimeout(P.noteT);
       P.noteT = setTimeout(layoutNotes, 250);
     });
@@ -781,7 +792,7 @@ const Editor = (() => {
     if (!a) return;
     const act = a.dataset.act;
     const fmt = { bold: 'bold', italic: 'italic', underline: 'underline', undo: 'undo', redo: 'redo' };
-    if (fmt[act]) { document.execCommand(fmt[act]); return; }
+    if (fmt[act]) { document.execCommand(fmt[act]); showStyles(); return; }
     if (act === 'align') return alignPop(a);
     if (act === 'scene') return pickScene(a);
     if (act === 'highlight') return pickHighlight(a);
@@ -798,6 +809,7 @@ const Editor = (() => {
     if (act === 'pages') return openPages();
     if (act === 'night') return P.ctx.toggleNight();
     if (act === 'menu') return P.ctx.projectMenu(P.project);
+    if (act === 'blur') return setBlur(!P.blur);
   }
 
   function onKey(e) {
@@ -810,7 +822,21 @@ const Editor = (() => {
     if (style && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.target.closest && e.target.closest('.chap-body[contenteditable="true"]')) {
       e.preventDefault();
       document.execCommand(style);
+      showStyles();
     }
+  }
+  // B / I / U light up when the cursor or selection is in bold / italic / underlined text
+  function showStyles() {
+    const sel = window.getSelection();
+    const n = sel.rangeCount && sel.anchorNode;
+    const inText = !!(n && (n.nodeType === 1 ? n : n.parentNode).closest && (n.nodeType === 1 ? n : n.parentNode).closest('.chap-body[contenteditable="true"]'));
+    ['bold', 'italic', 'underline'].forEach(k => {
+      const b = $(`.tb[data-act="${k}"]`);
+      if (!b) return;
+      let on = false;
+      try { on = inText && document.queryCommandState(k); } catch (e) {}
+      if (b.classList.contains('on') !== on) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    });
   }
 
   // "***" (or # or ~~~) on its own line + Enter = a scene break.
@@ -864,6 +890,8 @@ const Editor = (() => {
     // Look up is for one word only: greyed out when more is selected
     const lb = $('.tb[data-act="lookup"]');
     if (lb && P) { const t = sel.isCollapsed ? '' : sel.toString(); lb.disabled = !!t.trim() && !Lookup.isWord(t); }
+    if (P) showStyles();
+    if (P && P.blur) placeBlur();
     const n = sel.anchorNode;
     const sec = n && (n.nodeType === 1 ? n : n.parentNode).closest && (n.nodeType === 1 ? n : n.parentNode).closest('section.chap');
     if (sec && P && sec.dataset.cid !== P.current) setCurrent(sec.dataset.cid);
@@ -1548,6 +1576,52 @@ const Editor = (() => {
     ls.set('qc-side', show ? null : 'off');
     P.root.querySelector('.proj').classList.toggle('side-off', !show);
     relayoutNow(); // re-center the page right away, in the same moment, so it doesn't jump
+  }
+
+  // ---------- blur as I type (toolbar button; Appearance → Paragraphs can turn it on for the project) ----------
+  // Every paragraph is blurred but the one with the cursor (CSS, .blur-type / .typing); inside that one, the lines
+  // above and below the cursor's line get a blurred pane over them (#blurbox). It stays on until it's turned off.
+  // Only the screen changes: the writing, Pages, the book view and exports aren't touched.
+  let blurRaf = 0;
+  function setBlur(on) {
+    if (!P) return;
+    P.blur = !!on;
+    P.root.querySelector('.proj').classList.toggle('blur-type', P.blur);
+    const b = $('.tb[data-act="blur"]');
+    if (b) b.classList.toggle('on', P.blur);
+    placeBlur();
+  }
+  function placeBlur() { clearTimeout(blurRaf); blurRaf = setTimeout(placeBlurNow, 16); } // (once per burst of changes)
+  function placeBlurNow() {
+    if (!P) return;
+    let box = $('#blurbox');
+    // (all of them: pressing Return copies the class onto the new paragraph)
+    const was = $$('.chap-body > .typing');
+    if (!P.blur || P.reading) { was.forEach(el => el.classList.remove('typing')); if (box) { box.innerHTML = ''; box._html = ''; } return; }
+    if (!box) { box = document.createElement('div'); box.id = 'blurbox'; box.className = 'blurbox'; box.setAttribute('aria-hidden', 'true'); document.body.appendChild(box); }
+    const body = activeBody();
+    const blk = body && body.isContentEditable ? blockAtCaret(body) : null;
+    was.forEach(el => { if (el !== blk) el.classList.remove('typing'); });
+    const parts = [];
+    if (blk && !blk.classList.contains('scene')) {
+      blk.classList.add('typing');
+      // the cursor's line: from where the cursor is drawn, one line tall
+      const sel = window.getSelection();
+      const r = sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+      if (r) r.collapse(false);
+      const rects = r ? Array.from(r.getClientRects()) : [];
+      const c = rects[rects.length - 1];
+      const br = blk.getBoundingClientRect();
+      if (c && c.height) {
+        const lh = parseFloat(getComputedStyle(blk).lineHeight) || c.height * 1.5;
+        const mid = (c.top + c.bottom) / 2, top = mid - lh / 2, bot = mid + lh / 2;
+        if (top - br.top > 3) parts.push([br.left, br.top, br.width, top - br.top]);
+        if (br.bottom - bot > 3) parts.push([br.left, bot, br.width, br.bottom - bot]);
+      }
+    }
+    const sx = window.scrollX, sy = window.scrollY;
+    const html = parts.map(([l, t, w, h]) => `<div class="blurpart" style="left:${l + sx}px;top:${t + sy}px;width:${w}px;height:${h}px"></div>`).join('');
+    if (box._html !== html) { box.innerHTML = html; box._html = html; }
   }
 
   // ---------- focus mode ----------

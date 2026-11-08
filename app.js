@@ -453,7 +453,7 @@
         ${row('title', `<span style="font-family:${tf.css};font-size:${Math.round(20 * tf.size)}px">${esc(tf.name)}</span>`)}
         ${row('body', `<span style="font-family:${bf.css};font-size:${Math.round(16 * bf.size)}px">${esc(bf.name)}</span>`)}
         <div class="ap-row static"><span class="ap-label">Text size <small>points · 11 is a normal paperback</small></span><div class="sizer"><button data-size="-1" aria-label="Smaller">−</button><input id="lk-size" inputmode="numeric" value="${look.size || 11}" aria-label="Text size"><button data-size="1" aria-label="Bigger">+</button></div></div>
-        ${row('para', `${look.align === 'left' ? 'Left' : 'Justified'} · ${look.indent === 'book' ? 'book style' : 'indent every paragraph'}${look.dropcap ? ' · big first letter' : ''}`)}
+        ${row('para', `${look.align === 'left' ? 'Left' : 'Justified'} · ${look.indent === 'book' ? 'book style' : 'indent every paragraph'}${look.dropcap ? ' · big first letter' : ''}${look.blurType ? ' · blur as I type' : ''}`)}
         ${row('paper', esc(nameOf(Themes.TEXTURES, look.texture).name) + (look.texture === 'walnut' ? (look.walnut === 'page' ? ' · just the page' : ' · whole screen') : ''))}
         ${row('bg', `${thumb}${esc(bgText)}`)}
         ${row('scene', `<span class="ap-orn">${Editor.sceneTile(scene)}</span>`)}
@@ -468,7 +468,8 @@
       if (pg === 'body') return `<div class="fonts body">${Themes.BODY_FONTS.map(f => `<button class="${look.body === f.id ? 'on' : ''}" data-body="${f.id}" style="font-family:${f.css};font-size:${Math.round(16 * f.size)}px"><b>${esc(f.name)}</b> The pines held their breath before snow.</button>`).join('')}</div>`;
       if (pg === 'para') return `<div class="seg wrap" id="lk-al"><button data-al="justify" class="${look.align !== 'left' ? 'on' : ''}">Justified <small>(straight edges, like a book)</small></button><button data-al="left" class="${look.align === 'left' ? 'on' : ''}">Left <small>(ragged right edge)</small></button></div>
         <div class="seg wrap" id="lk-ind"><button data-ind="all" class="${look.indent !== 'book' ? 'on' : ''}">Indent every paragraph</button><button data-ind="book" class="${look.indent === 'book' ? 'on' : ''}">Book style <small>(first one flush)</small></button></div>
-        <label class="check"><input type="checkbox" id="lk-drop" ${look.dropcap ? 'checked' : ''}> Big first letter on each chapter</label>`;
+        <label class="check"><input type="checkbox" id="lk-drop" ${look.dropcap ? 'checked' : ''}> Big first letter on each chapter</label>
+        <label class="check"><input type="checkbox" id="lk-blur" ${look.blurType ? 'checked' : ''}> Blur my words as I type <small class="muted">— all but the line I’m on, whenever this project opens (the blur button in the toolbar turns it on and off any time)</small></label>`;
       if (pg === 'paper') {
         const own = colorsNow();
         const sample = id => id === 'walnut' ? Themes.WALNUT : { paper: Themes.PAPER[id] || own.paper, ink: own.ink };
@@ -578,6 +579,7 @@
       const ind = t.closest('[data-ind]');
       if (ind) { look.indent = ind.dataset.ind; return redraw(); }
       if (t.id === 'lk-drop') { look.dropcap = t.checked; return tryOn(); }
+      if (t.id === 'lk-blur') { look.blurType = t.checked; return tryOn(); }
       const wl = t.closest('[data-wal]');
       if (wl) { look.walnut = wl.dataset.wal; return redraw(); }
       const tx = t.closest('[data-tex]');

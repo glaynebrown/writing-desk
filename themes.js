@@ -63,7 +63,8 @@ const Themes = (() => {
   // dropcap: a big first letter on each chapter
   // align: 'justify' (straight edges both sides, the normal book look) or 'left' (ragged right edge)
   //        -- the whole project's lines; the toolbar's alignment button still changes single paragraphs
-  const DEFAULT = { preset: 'candle', custom: null, title: 'cormorant', body: 'garamond', texture: 'parchment', size: 11, indent: 'all', dropcap: false, align: 'justify' };
+  // blurType: blur my words as I type (all but the line I'm on) starts on in this project
+  const DEFAULT = { preset: 'candle', custom: null, title: 'cormorant', body: 'garamond', texture: 'parchment', size: 11, indent: 'all', dropcap: false, align: 'justify', blurType: false };
   const APP = DEFAULT; // the bookshelf's own look
 
   // ---- color math ----
