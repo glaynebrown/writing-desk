@@ -741,6 +741,14 @@ const Editor = (() => {
     root.addEventListener('input', e => {
       const sec = e.target.closest('section.chap');
       if (!sec) return;
+      // Return copies the paragraph -- including the page-top space (data-pgap) of one that starts a page.
+      // Only the first of the two keeps it; taken off the copy right away, before it's drawn.
+      if (e.inputType === 'insertParagraph') {
+        for (const b of $$('.chap-body > [data-pgap]', sec)) {
+          const prev = b.previousElementSibling;
+          if (prev && prev.dataset.pgap) { b.style.paddingTop = ''; delete b.dataset.pgap; if (!b.getAttribute('style')) b.removeAttribute('style'); }
+        }
+      }
       if (e.target.classList.contains('chap-title')) { P.state[sec.dataset.cid].titleDirty = true; markDirty(sec.dataset.cid); return; }
       markDirty(sec.dataset.cid);
       schedulePage(sec.dataset.cid);
