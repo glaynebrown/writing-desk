@@ -15,7 +15,8 @@
    On the iPhone there's no room around the page, so any photo shows faded (like 'soft').
 
    The starter photos are free-to-use photos from Unsplash. They load straight from Unsplash
-   (nothing to upload); the service worker keeps a copy so they work offline afterward. */
+   (nothing to upload); the service worker keeps a copy so they work offline afterward.
+   One more (Mountain road) is a picture she added, kept with the app's own files. */
 
 const Backdrop = (() => {
   const STARTERS = [
@@ -29,10 +30,17 @@ const Backdrop = (() => {
     { id: 'mist', name: 'Misty lake', u: '1671485927315-f56c7a65a051' },
     { id: 'autumn', name: 'Autumn woods', u: '1509833214245-2078371af406' },
     { id: 'snow', name: 'Snowy village', u: '1609860200862-280ef414ed6a' },
+    // (her own pick, kept with the app's files: file = the full photo, thumb = the small one for the picker)
+    { id: 'road', name: 'Mountain road', file: 'bg-road.jpg', thumb: 'bg-road-thumb.jpg' },
   ];
   const STYLES = [['none', 'None'], ['around', 'Around the page'], ['glass', 'See-through page'], ['soft', 'Soft and light'], ['bare', 'No page']];
   const EFFECTS = [['', 'None'], ['snow', 'Snow'], ['rain', 'Rain on a window'], ['fireflies', 'Fireflies'], ['leaves', 'Falling leaves'], ['fog', 'Fog'], ['glow', 'Candle glow']];
-  const starterUrl = (id, w = 2400) => { const s = STARTERS.find(x => x.id === id); return s ? `https://images.unsplash.com/photo-${s.u}?w=${w}&q=${w > 1000 ? 78 : 60}&auto=format&fit=crop` : ''; };
+  const starterUrl = (id, w = 2400) => {
+    const s = STARTERS.find(x => x.id === id);
+    if (!s) return '';
+    if (s.file) return w <= 400 ? s.thumb : s.file;
+    return `https://images.unsplash.com/photo-${s.u}?w=${w}&q=${w > 1000 ? 78 : 60}&auto=format&fit=crop`;
+  };
   const norm = bg => ({ style: 'none', photo: null, dim: 0.2, blur: 0, effect: '', ...(bg || {}) });
   const hasPhoto = bg => bg.style !== 'none' && !!bg.photo;
   // a YouTube link → { id, start } (watch?v=, youtu.be/, /shorts/, /embed/, /live/; t= or start= in seconds or 1h2m3s)
