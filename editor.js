@@ -11,8 +11,9 @@
    On the Mac the chapters are shown as real 6×9 pages, like Google Docs: a
    short pause after typing, the text is measured and <span class="pgap">
    spacers are slipped in where each page ends, so the words hop over the gap
-   to the next page. Spacers are never saved. On the iPhone it stays one long
-   page. */
+   to the next page. A paragraph that starts a new page gets the space as padding
+   above it instead (data-pgap), so its first line keeps its indent. Spacers are
+   never saved. On the iPhone it stays one long page. */
 
 const Editor = (() => {
   const { $, $$, esc, icon, ls, dayKey, num, wordsIn, plural, toast, ask, sheet, closeSheet, popover, closePopover, sortable, narrow, numWord } = UI;
@@ -536,6 +537,7 @@ const Editor = (() => {
 
   function unspace(body) {
     for (const sp of $$('.pgap', body)) { const par = sp.parentNode; sp.remove(); par.normalize(); }
+    for (const b of $$('[data-pgap]', body)) { b.style.paddingTop = ''; delete b.dataset.pgap; if (!b.getAttribute('style')) b.removeAttribute('style'); }
   }
   // text nodes of a paragraph with where each one starts
   function textMap(el) {
@@ -586,6 +588,9 @@ const Editor = (() => {
     return null;
   }
   function spacer(at, h) {
+    // a paragraph starting the page: space above it, not a spacer inside it (inside, the spacer would be
+    // its "first line" and the real first line would lose its indent)
+    if (!at.off && at.b.tagName === 'P') { at.b.style.paddingTop = Math.max(0, h) + 'px'; at.b.dataset.pgap = '1'; return; }
     const sp = document.createElement('span');
     sp.className = 'pgap';
     sp.contentEditable = 'false';
