@@ -53,6 +53,7 @@ const Backdrop = (() => {
 
   // ---------- the layer ----------
   let layer = null, img = null, canvas = null, shown = '';
+  let fileUrl = ''; // the blob: address of her own photo while it's showing (see apply)
   function ensure() {
     if (layer) return;
     layer = document.createElement('div');
@@ -110,12 +111,26 @@ const Backdrop = (() => {
       img.style.backgroundImage = '';
       img.classList.remove('ready');
       layer.style.removeProperty('--bd-tint');
+      if (fileUrl) { URL.revokeObjectURL(fileUrl); fileUrl = ''; }
       if (photo) {
+        const show = url => {
+          if (shown !== key) return;
+          const pre = new Image();
+          pre.onload = () => { if (shown !== key) return; img.style.backgroundImage = `url("${url}")`; img.classList.add('ready'); };
+          pre.src = url;
+        };
         const set = src => {
           if (!src || shown !== key) return;
-          const pre = new Image();
-          pre.onload = () => { if (shown !== key) return; img.style.backgroundImage = `url("${src}")`; img.classList.add('ready'); };
-          pre.src = src;
+          // Her own photos arrive as one huge data: text. Handed to the browser like that, Chrome now and
+          // then threw the drawn photo away and rebuilt it from the text (a bright flash when scrolling or
+          // pausing). As an in-memory file with a short blob: address it's kept like any normal picture.
+          if (/^data:/.test(src)) {
+            fetch(src).then(r => r.blob()).then(b => {
+              if (shown !== key) return;
+              fileUrl = URL.createObjectURL(b);
+              show(fileUrl);
+            }).catch(() => show(src));
+          } else show(src);
           // a starter's color comes from a tiny copy of it (the big one is saved for offline in a way
           // that can't be read back); her own photos are already on the device
           tint(bg.photo.starter ? starterUrl(bg.photo.starter, 16) : src).then(c => { if (c && shown === key) layer.style.setProperty('--bd-tint', c); });
