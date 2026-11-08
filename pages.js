@@ -199,7 +199,9 @@ const Pages = (() => {
           afterBreak = true;
           continue;
         }
-        const al = ['left', 'center', 'right'].filter(k => b.classList.contains(k)).map(k => k + ' ').join('');
+        // the paragraph's own alignment, or the project's (Appearance → Paragraphs); justified = no class
+        const own = ['left', 'center', 'right', 'justify'].find(k => b.classList.contains(k)) || (L.align === 'left' ? 'left' : '');
+        const al = own && own !== 'justify' ? own + ' ' : '';
         // the big first letter goes on the chapter's first paragraph
         const drop = L.dropcap && bi === 0 && !!b.textContent.trim();
         const cls = al + (drop ? 'drop noind' : afterBreak && L.indent === 'book' ? 'noind' : '');

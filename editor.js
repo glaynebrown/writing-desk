@@ -70,8 +70,8 @@ const Editor = (() => {
       const t = (el.getAttribute && (el.getAttribute('style') || '') + ' ' + (el.getAttribute('align') || '') + ' ' + (el.className || '')) || '';
       if (/center/i.test(t)) return 'center';
       if (/right/i.test(t)) return 'right';
-      // ragged-left only from our own class (pasted "left" text stays book-normal)
-      return el.classList && el.classList.contains('left') ? 'left' : '';
+      // ragged-left / justify only from our own class (pasted "left" text follows the project)
+      return el.classList && el.classList.contains('left') ? 'left' : el.classList && el.classList.contains('justify') ? 'justify' : '';
     };
 
     // Copy inline content (formatting kept, everything else unwrapped) into `into`.
@@ -968,9 +968,11 @@ const Editor = (() => {
   }
 
   // ---------- formatting ----------
-  // no class = justified (straight edges both sides), the normal book look
+  // no class = the project's alignment (Appearance → Paragraphs: justified, the normal book look, or left);
+  // a paragraph set differently keeps a class (left / center / right / justify)
   const ALIGNS = [{ id: 'left', name: 'Left' }, { id: 'center', name: 'Center' }, { id: 'right', name: 'Right' }, { id: 'justify', name: 'Justify (normal book text)' }];
-  const alignNow = b => (!b ? 'justify' : ['left', 'center', 'right'].find(k => b.classList.contains(k)) || 'justify');
+  const projAlign = () => (P && Themes.norm(P.project.look).align === 'left' ? 'left' : 'justify');
+  const alignNow = b => (!b ? projAlign() : ['left', 'center', 'right', 'justify'].find(k => b.classList.contains(k)) || projAlign());
   function alignPop(btn) {
     const body = activeBody();
     if (!body) return toast('Tap into your writing first.');
@@ -983,7 +985,7 @@ const Editor = (() => {
     const r = window.getSelection().getRangeAt(0);
     const blocks = Array.from(body.children).filter(b => !b.classList.contains('scene') && r.intersectsNode(b));
     if (!blocks.length) return;
-    blocks.forEach(b => { b.classList.remove('left', 'center', 'right'); if (kind !== 'justify') b.classList.add(kind); b.style.textAlign = ''; if (!b.className) b.removeAttribute('class'); });
+    blocks.forEach(b => { b.classList.remove('left', 'center', 'right', 'justify'); if (kind !== projAlign()) b.classList.add(kind); b.style.textAlign = ''; if (!b.className) b.removeAttribute('class'); });
     markDirty(body.closest('section.chap').dataset.cid);
     showAlign();
   }

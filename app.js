@@ -453,7 +453,7 @@
         ${row('title', `<span style="font-family:${tf.css};font-size:${Math.round(20 * tf.size)}px">${esc(tf.name)}</span>`)}
         ${row('body', `<span style="font-family:${bf.css};font-size:${Math.round(16 * bf.size)}px">${esc(bf.name)}</span>`)}
         <div class="ap-row static"><span class="ap-label">Text size <small>points · 11 is a normal paperback</small></span><div class="sizer"><button data-size="-1" aria-label="Smaller">−</button><input id="lk-size" inputmode="numeric" value="${look.size || 11}" aria-label="Text size"><button data-size="1" aria-label="Bigger">+</button></div></div>
-        ${row('para', `${look.indent === 'book' ? 'Book style' : 'Indent every paragraph'}${look.dropcap ? ' · big first letter' : ''}`)}
+        ${row('para', `${look.align === 'left' ? 'Left' : 'Justified'} · ${look.indent === 'book' ? 'book style' : 'indent every paragraph'}${look.dropcap ? ' · big first letter' : ''}`)}
         ${row('paper', esc(nameOf(Themes.TEXTURES, look.texture).name) + (look.texture === 'walnut' ? (look.walnut === 'page' ? ' · just the page' : ' · whole screen') : ''))}
         ${row('bg', `${thumb}${esc(bgText)}`)}
         ${row('scene', `<span class="ap-orn">${Editor.sceneTile(scene)}</span>`)}
@@ -466,7 +466,8 @@
         </details>`;
       if (pg === 'title') return `<div class="fonts titles">${Themes.TITLE_FONTS.map(f => `<button class="${look.title === f.id ? 'on' : ''}" data-title="${f.id}" style="font-family:${f.css};font-size:${Math.round(22 * f.size)}px">${esc(p.title && p.title.length < 22 ? p.title : 'Chapter One')}</button>`).join('')}</div>`;
       if (pg === 'body') return `<div class="fonts body">${Themes.BODY_FONTS.map(f => `<button class="${look.body === f.id ? 'on' : ''}" data-body="${f.id}" style="font-family:${f.css};font-size:${Math.round(16 * f.size)}px"><b>${esc(f.name)}</b> The pines held their breath before snow.</button>`).join('')}</div>`;
-      if (pg === 'para') return `<div class="seg wrap" id="lk-ind"><button data-ind="all" class="${look.indent !== 'book' ? 'on' : ''}">Indent every paragraph</button><button data-ind="book" class="${look.indent === 'book' ? 'on' : ''}">Book style <small>(first one flush)</small></button></div>
+      if (pg === 'para') return `<div class="seg wrap" id="lk-al"><button data-al="justify" class="${look.align !== 'left' ? 'on' : ''}">Justified <small>(straight edges, like a book)</small></button><button data-al="left" class="${look.align === 'left' ? 'on' : ''}">Left <small>(ragged right edge)</small></button></div>
+        <div class="seg wrap" id="lk-ind"><button data-ind="all" class="${look.indent !== 'book' ? 'on' : ''}">Indent every paragraph</button><button data-ind="book" class="${look.indent === 'book' ? 'on' : ''}">Book style <small>(first one flush)</small></button></div>
         <label class="check"><input type="checkbox" id="lk-drop" ${look.dropcap ? 'checked' : ''}> Big first letter on each chapter</label>`;
       if (pg === 'paper') {
         const own = colorsNow();
@@ -572,6 +573,8 @@
       if (bf) { look.body = bf.dataset.body; return redraw(); }
       const sz = t.closest('[data-size]');
       if (sz) { look.size = Math.max(8, Math.min(18, (Number(look.size) || 11) + Number(sz.dataset.size))); $('#lk-size').value = look.size; return tryOn(); }
+      const al = t.closest('[data-al]');
+      if (al) { look.align = al.dataset.al; return redraw(); }
       const ind = t.closest('[data-ind]');
       if (ind) { look.indent = ind.dataset.ind; return redraw(); }
       if (t.id === 'lk-drop') { look.dropcap = t.checked; return tryOn(); }

@@ -150,7 +150,8 @@ const IO = (() => {
       }
       if (!b.textContent.trim()) { out.push('<p class="blank">&#160;</p>'); continue; }
       const drop = look.dropcap && !out.length;
-      const cls = [['left', 'center', 'right'].find(k => b.classList.contains(k)) || '', drop || (after && look.indent === 'book') ? 'first' : ''].filter(Boolean).join(' ');
+      const own = ['left', 'center', 'right', 'justify'].find(k => b.classList.contains(k)) || (look.align === 'left' ? 'left' : '');
+      const cls = [own === 'justify' ? '' : own, drop || (after && look.indent === 'book') ? 'first' : ''].filter(Boolean).join(' ');
       after = false;
       let inner = Array.from(b.childNodes).map(n => ser.serializeToString(n)).join('').replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '');
       // big first letter (with an opening quote mark, if there is one)

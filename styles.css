@@ -533,6 +533,7 @@ body.focus-mode .side-show { display: none !important; }
 .chap-body p.center, .chap-body > div.center { text-align: center; text-indent: 0; }
 .chap-body p.right, .chap-body > div.right { text-align: right; text-indent: 0; }
 .chap-body p.left, .chap-body > div.left { text-align: left; }
+.chap-body p.justify, .chap-body > div.justify { text-align: justify; }
 html[data-indent="book"] .chap-body .scene + p, html[data-indent="book"] .chap-body > p:first-child { text-indent: 0; }
 /* big first letter on each chapter */
 html[data-dropcap="1"] .chap-body > p:first-child { text-indent: 0; }
@@ -645,6 +646,9 @@ html[data-texture="linen"] .pcard { background-image: repeating-linear-gradient(
 .paged .chap-body p.center, .paged .chap-body > div.center { text-align: center; text-indent: 0; }
 .paged .chap-body p.right, .paged .chap-body > div.right { text-align: right; text-indent: 0; }
 .paged .chap-body p.left, .paged .chap-body > div.left { text-align: left; }
+/* Appearance → Paragraphs → Left: the whole project ragged right (a paragraph set to Justify keeps .justify) */
+:where(html[data-align="left"]) .paged .chap-body p, :where(html[data-align="left"]) .paged .chap-body > div:not(.scene) { text-align: left; }
+.paged .chap-body p.justify, .paged .chap-body > div.justify { text-align: justify; }
 html[data-indent="book"] .paged .chap-body .scene + p, html[data-indent="book"] .paged .chap-body > p:first-child { text-indent: 0; }
 html[data-dropcap="1"] .paged .chap-body > p:first-child { text-indent: 0; }
 .paged .chap-body .scene { margin: .9em 0; }

@@ -61,7 +61,9 @@ const Themes = (() => {
   // size = the book's text size in points (11 is a normal paperback)
   // indent: 'all' (every paragraph) or 'book' (first one after a heading or break sits flush)
   // dropcap: a big first letter on each chapter
-  const DEFAULT = { preset: 'candle', custom: null, title: 'cormorant', body: 'garamond', texture: 'parchment', size: 11, indent: 'all', dropcap: false };
+  // align: 'justify' (straight edges both sides, the normal book look) or 'left' (ragged right edge)
+  //        -- the whole project's lines; the toolbar's alignment button still changes single paragraphs
+  const DEFAULT = { preset: 'candle', custom: null, title: 'cormorant', body: 'garamond', texture: 'parchment', size: 11, indent: 'all', dropcap: false, align: 'justify' };
   const APP = DEFAULT; // the bookshelf's own look
 
   // ---- color math ----
@@ -144,6 +146,7 @@ const Themes = (() => {
     el.dataset.texture = norm(look).texture;
     el.dataset.indent = norm(look).indent === 'book' ? 'book' : 'all';
     el.dataset.dropcap = norm(look).dropcap ? '1' : '';
+    el.dataset.align = norm(look).align === 'left' ? 'left' : '';
     el.dataset.night = night && night !== 'walnut' ? '1' : '';
     // dark: the whole screen is walnut; darkpage: just the page is
     const lk = norm(look);
