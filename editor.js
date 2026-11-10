@@ -248,7 +248,7 @@ const Editor = (() => {
 
   function shell(p) {
     const tb = (act, ic, label, cls = '') => `<button class="tb ${cls}" data-act="${act}" title="${label}" aria-label="${label}">${ic}</button>`;
-    return `<div class="proj ${p.kind === 'short' ? 'short' : ''} ${Project.showsAll(p) ? '' : 'no-extras'} ${ls.get('qc-side') === 'off' ? 'side-off' : ''} ${P.blur ? 'blur-type' : ''}">
+    return `<div class="proj ${p.kind === 'short' ? 'short' : ''} ${Project.showsAll(p) ? '' : 'no-extras'} ${sideOff(p.id) ? 'side-off' : ''} ${P.blur ? 'blur-type' : ''}">
       <header class="ptop">
         <a class="back" href="#/shelf" title="Library" aria-label="Back to Library">${icon('back')}</a>
         <div class="ptitle"><span id="p-title">${esc(p.title || 'Untitled')}</span><span class="pstat"><span id="p-words"></span><span id="p-sync" class="sync"></span></span></div>
@@ -1622,9 +1622,11 @@ const Editor = (() => {
     });
   }
 
-  // ---------- the chapter list (Mac): hide it or bring it back; this device remembers ----------
+  // ---------- the chapter list (Mac): hide it or bring it back; this device remembers, for each project ----------
+  // (a project not set yet follows the old all-projects setting, qc-side, so nothing changes until she toggles it)
+  const sideOff = pid => (ls.get('qc-side:' + pid) || ls.get('qc-side')) === 'off';
   function sideList(show) {
-    ls.set('qc-side', show ? null : 'off');
+    ls.set('qc-side:' + P.pid, show ? 'on' : 'off');
     P.root.querySelector('.proj').classList.toggle('side-off', !show);
     relayoutNow(); // re-center the page right away, in the same moment, so it doesn't jump
   }
