@@ -299,8 +299,8 @@
   // ---------- project menu ----------
   function projectMenu(p, start) {
     const writing = Editor.isOpen(p.id);
-    // what opens from here gets a "‹ back" link to this menu (or to History & deleting)
-    const backTo = where => ({ label: where === 'hist' ? 'History & deleting' : p.title || 'Untitled', go: () => projectMenu(p, where) });
+    // what opens from here gets a "‹ back" link to this menu (or to History, backup & deleting)
+    const backTo = where => ({ label: where === 'hist' ? 'History, backup & deleting' : p.title || 'Untitled', go: () => projectMenu(p, where) });
     const main = () => `<h2>${esc(p.title || 'Untitled')}</h2>
       <div class="menu">
         <button data-m="details">${icon('book')}<span><b>Details &amp; cover</b><small>Title, kind, page size, cover from Canva</small></span></button>
@@ -309,13 +309,14 @@
         <button data-m="export">${icon('kindle')}<span><b>Export for Kindle</b><small>An EPUB ebook</small></span></button>
         ${p.locked ? `<button data-m="unlockgood">${icon('lock')}<span><b>Unlock for good</b><small>Take the lock off this project</small></span></button>`
           : `<button data-m="lock">${icon('lock')}<span><b>Lock this project</b><small>Your writing is scrambled with your passphrase — no one else can read it</small></span></button>`}
-        <button data-m="hist">${icon('undo')}<span><b>History &amp; deleting</b><small>Earlier versions, deleted chapters, delete</small></span>${icon('back', 'ap-chev')}</button>
+        <button data-m="hist">${icon('undo')}<span><b>History, backup &amp; deleting</b><small>Earlier versions, deleted chapters, Google Drive backup, delete</small></span>${icon('back', 'ap-chev')}</button>
       </div>`;
-    // the bring-it-back options first; the ones that can't be undone last, below a line
-    const hist = () => `<button class="ap-back" data-m="main">${icon('back')} ${esc(p.title || 'Untitled')}</button><h2>History &amp; deleting</h2>
+    // the bring-it-back options first, then the Drive backup switch; the ones that can't be undone last, below a line
+    const hist = () => `<button class="ap-back" data-m="main">${icon('back')} ${esc(p.title || 'Untitled')}</button><h2>History, backup &amp; deleting</h2>
       <div class="menu">
         ${writing ? `<button data-m="history">${icon('undo')}<span><b>Earlier versions of this chapter</b><small>The last 7 days</small></span></button>` : ''}
         <button data-m="deleted">${icon('undo')}<span><b>Deleted chapters</b><small>Bring one back (7 days)</small></span></button>
+        ${p.locked ? '' : `<button data-m="backup" role="switch" aria-checked="${p.backup ? 'true' : 'false'}">${icon('storage')}<span><b>Back up to Google Drive every night</b><small>A Google Doc in your Writings folder (the Drive Backup script)</small></span><span class="sw ${p.backup ? 'on' : ''}"></span></button>`}
         <hr class="menu-div">
         ${writing ? `<button data-m="delch">${icon('trash')}<span><b>Delete this chapter</b><small>The one your cursor is in</small></span></button>` : ''}
         <button data-m="delete" class="danger">${icon('trash')}<span><b>Delete project</b><small>Everything in it, for good</small></span></button>
@@ -328,6 +329,14 @@
       const m = b.dataset.m;
       if (m === 'hist') return show(hist());
       if (m === 'main') return show(main());
+      // the backup switch flips right here (no Save); read by the Drive Backup Apps Script each night
+      if (m === 'backup') {
+        p.backup = !p.backup;
+        API.saveProject(p.id, { backup: p.backup });
+        b.setAttribute('aria-checked', p.backup ? 'true' : 'false');
+        b.querySelector('.sw').classList.toggle('on', p.backup);
+        return;
+      }
       closeSheet(true);
       if (m === 'details') detailsSheet(p, backTo('main'));
       if (m === 'look') lookSheet(p, backTo('main'));
@@ -380,13 +389,12 @@
           <div class="field"><label for="dt-pin">Pinterest board for this project <small>(optional)</small></label><input class="input" id="dt-pin" inputmode="url" value="${esc(p.pinterest || '')}" placeholder="https://www.pinterest.com/…"></div>
           <div class="field"><label for="dt-canva">Canva design (like the cover) <small>(optional)</small></label><input class="input" id="dt-canva" inputmode="url" value="${esc(p.canva || '')}" placeholder="https://www.canva.com/design/…"></div>
           ${p.kind === 'short' ? `<label class="check"><input type="checkbox" id="dt-extras" ${p.extras ? 'checked' : ''}> Show Characters, Plot, Ideas and Research for this short piece</label>` : ''}
-          ${p.locked ? '' : `<label class="check"><input type="checkbox" id="dt-backup" ${p.backup ? 'checked' : ''}> Back up to Google Drive every night <small class="muted">— a Google Doc in your Writings folder (the Drive Backup script)</small></label>`}
           <div class="field"><label>Page size <small>(for Pages and the cover)</small></label><div class="sizes" id="dt-size">${SIZES.map(s => `<button data-w="${s.w}" data-h="${s.h}" class="${size.w === s.w && size.h === s.h ? 'on' : ''}"><b>${s.name}</b><small>${s.note}</small></button>`).join('')}</div></div>
         </div>
       </div>
       <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="dt-save">Save</button></div>`, { cls: 'wide', back: back && { ...back, dirty: () => fields() !== startFields } });
     // (for "Leave without saving?" on the back link)
-    const fields = () => JSON.stringify([$('#dt-title') && $('#dt-title').value, kind, size, $('#dt-pin') && $('#dt-pin').value, $('#dt-canva') && $('#dt-canva').value, $('#dt-extras') ? $('#dt-extras').checked : null, $('#dt-backup') ? $('#dt-backup').checked : null, !!newCover, dropCover]);
+    const fields = () => JSON.stringify([$('#dt-title') && $('#dt-title').value, kind, size, $('#dt-pin') && $('#dt-pin').value, $('#dt-canva') && $('#dt-canva').value, $('#dt-extras') ? $('#dt-extras').checked : null, !!newCover, dropCover]);
     const startFields = fields();
     fillImages(el);
     el.addEventListener('click', async e => {
@@ -415,7 +423,6 @@
         const link = v => { v = v.trim(); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
         const patch = { title: $('#dt-title').value.trim() || 'Untitled', kind, pageSize: size, pinterest: link($('#dt-pin').value), canva: link($('#dt-canva').value) };
         if ($('#dt-extras')) patch.extras = $('#dt-extras').checked;
-        if ($('#dt-backup')) patch.backup = $('#dt-backup').checked; // (read by the Drive Backup Apps Script)
         if (newCover) {
           patch.coverId = API.putImage({ ...newCover, pid: p.id });
           if (p.coverId) API.deleteImage(p.coverId);

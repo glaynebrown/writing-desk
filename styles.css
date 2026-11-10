@@ -943,6 +943,13 @@ body.find-on .paged .margin { opacity: .35; }
 .ap-label small { display: block; font-weight: 400; font-size: 12px; color: var(--ink-faint); }
 .ap-val { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; color: var(--ink-soft); font-size: 14.5px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ap-row.static .sizer { margin-left: auto; }
+/* an on/off switch at the end of a menu row (History, backup & deleting → Drive backup) */
+.sw { flex: none; position: relative; width: 42px; height: 25px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 18%, transparent); transition: background .2s; align-self: center; }
+.sw::after { content: ''; position: absolute; top: 2.5px; left: 2.5px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .2s; }
+.sw.on { background: var(--accent); }
+.sw.on::after { transform: translateX(17px); }
+.menu button[role="switch"] > span:not(.sw) { flex: 1; }
+.menu button .sw { display: block; }
 .ap-chev { width: 16px; height: 16px; flex: none; color: var(--ink-faint); transform: scaleX(-1); }
 .ap-dots { display: inline-flex; }
 .ap-dots i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--paper); box-shadow: 0 0 0 1px var(--line); margin-left: -4px; }
