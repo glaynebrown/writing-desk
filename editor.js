@@ -619,6 +619,32 @@ const Editor = (() => {
     const at = map.len ? nodeAt(map, Math.min(s.c, map.len), true) : null;
     return at || [blk, 0];
   }
+  // Are the page breaks already where they belong? Then the text is left alone: rebuilding them after
+  // every pause meant rebuilding the text under the cursor, and now and then (with Safari's autocorrect
+  // working at the same moment) the cursor landed somewhere else on the page.
+  // Each page must end with a spacer before a line that starts exactly at the next page's top margin, and
+  // that line mustn't fit back on the page it was pushed off.
+  function breaksOk(sec, body, H, G, top, bot) {
+    const sps = $$('.pgap, [data-pgap]', body);
+    for (let k = 0; k <= sps.length; k++) {
+      const base = sec.getBoundingClientRect().top;
+      const limit = k * (H + G) + H - bot;
+      const at = lineBelow(body, limit, base);
+      if (!at) return k === sps.length;
+      if (k === sps.length) return false;
+      const sp = sps[k];
+      // where the pushed line really starts (past the space above a paragraph, or past a spacer at its start)
+      let start = at.top;
+      if (!at.off) {
+        if (at.b !== sp && !at.b.contains(sp)) return false;
+        start += at.b === sp ? parseFloat(sp.style.paddingTop) || 0 : sp.getBoundingClientRect().height;
+      } else if (!at.b.contains(sp)) return false;
+      if (Math.abs(start - ((k + 1) * (H + G) + top)) > 1.5) return false;
+      const lh = parseFloat(getComputedStyle(at.b).lineHeight) || 20;
+      if (sp.getBoundingClientRect().top - base + lh <= limit + 0.5) return false;
+    }
+    return false;
+  }
   function paginate(cid, quiet) {
     if (!P || !P.paged) return;
     const sec = $(`section.chap[data-cid="${cid}"]`);
@@ -626,6 +652,11 @@ const Editor = (() => {
     const body = sec.querySelector('.chap-body');
     const m = metrics(), z = P.z;
     const H = m.H * z, G = GAP, top = m.MT * z, bot = m.MB * z;
+    if (sec.querySelector('.pcards').children.length && breaksOk(sec, body, H, G, top, bot)) {
+      if (!quiet) renumber();
+      if (P.blur) placeBlur();
+      return;
+    }
     // remember the cursor
     const sel = window.getSelection();
     let keep = null;
@@ -650,7 +681,11 @@ const Editor = (() => {
     while (box.children.length < pages) { const c = document.createElement('div'); c.className = 'pcard'; c.innerHTML = '<span class="pnum"></span>'; box.appendChild(c); }
     while (box.children.length > pages) box.lastChild.remove();
     Array.from(box.children).forEach((c, i) => { c.style.top = i * (H + G) + 'px'; c.classList.toggle('first', i === 0); });
-    if (keep && keep.a && keep.b) {
+    // put the cursor back only if it moved (the browser usually keeps it in place on its own)
+    const now = sel.rangeCount && body.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
+    const same = (x, y) => x && y && x.i === y.i && x.c === y.c;
+    const moved = !now || !same(spot(body, now.startContainer, now.startOffset), keep && keep.a) || !same(spot(body, now.endContainer, now.endOffset), keep && keep.b);
+    if (keep && keep.a && keep.b && moved) {
       const a = place(body, keep.a), b = place(body, keep.b);
       if (a && b) {
         const r = document.createRange();
