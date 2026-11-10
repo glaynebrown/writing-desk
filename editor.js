@@ -225,6 +225,7 @@ const Editor = (() => {
     document.body.classList.remove('focus-mode');
     closePopover();
     clearTimeout(blurRaf);
+    closePlot();
     const bb = $('#blurbox');
     if (bb) bb.remove();
     P = null;
@@ -272,6 +273,7 @@ const Editor = (() => {
         ${tb('find', icon('find'), 'Find and replace (⌘F)')}
         ${tb('lookup', icon('lookup'), 'Look up a word — meaning, similar, opposite, related')}
         ${tb('idea', icon('bulb'), 'Jot down an idea for this story')}
+        ${tb('plot', icon('timeline'), 'Plot — your story’s events beside the page')}
         <span class="tsep"></span>
         ${tb('pages', icon('pages'), 'Pages — see it as a printed book')}
         ${tb('focus', icon('focus'), 'Focus mode', 'hide-narrow')}
@@ -858,6 +860,7 @@ const Editor = (() => {
     if (act === 'night') return P.ctx.toggleNight();
     if (act === 'menu') return P.ctx.projectMenu(P.project);
     if (act === 'blur') return setBlur(!P.blur);
+    if (act === 'plot') return plotPanel();
   }
 
   function onKey(e) {
@@ -1624,6 +1627,64 @@ const Editor = (() => {
     ls.set('qc-side', show ? null : 'off');
     P.root.querySelector('.proj').classList.toggle('side-off', !show);
     relayoutNow(); // re-center the page right away, in the same moment, so it doesn't jump
+  }
+
+  // ---------- the Plot beside the page (toolbar button) ----------
+  // The project's events in story order (the Plot tab, project.js), opened at the first one not yet
+  // written; tick one off from here. Adding and changing events happens on the Plot tab.
+  let plotOff = null;
+  function closePlot() {
+    if (plotOff) { plotOff(); plotOff = null; }
+    const el = $('#plot-panel');
+    if (el) el.remove();
+    const b = $('.tb[data-act="plot"]');
+    if (b) b.classList.remove('on');
+    if (document.body.classList.contains('plot-open')) { document.body.classList.remove('plot-open'); if (P) onResize(); }
+  }
+  function plotPanel() {
+    if ($('#plot-panel')) return closePlot();
+    const el = document.createElement('aside');
+    el.id = 'plot-panel';
+    el.className = 'plot-panel';
+    el.innerHTML = `<div class="pp-head"><b>Plot</b><span class="pp-count"></span><button class="pp-x" data-pp="close" title="Close" aria-label="Close">${icon('x')}</button></div>
+      <ol class="pp-list"><li class="muted pp-empty">Opening…</li></ol>
+      <a class="pp-edit" href="#/p/${P.pid}/timeline">Add or change events on the Plot page</a>`;
+    document.body.appendChild(el);
+    document.body.classList.add('plot-open'); // (the page moves over to make room)
+    onResize();
+    const b = $('.tb[data-act="plot"]');
+    if (b) b.classList.add('on');
+    let list = [], first = true;
+    const draw = () => {
+      const done = list.filter(e => e.done).length;
+      $('.pp-count', el).textContent = list.length ? `${done} of ${list.length} written` : '';
+      $('.pp-list', el).innerHTML = list.length ? list.map(ev => `<li class="pp-ev ${ev.done ? 'done' : ''}" data-id="${ev.id}">
+          <button class="pl-tick" data-pp="done" title="${ev.done ? 'Written — tap to undo' : 'Mark as written'}" aria-pressed="${ev.done ? 'true' : 'false'}">${icon('check')}</button>
+          <div class="pp-text" data-pp="open"><b>${esc(ev.title || 'Untitled event')}</b>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}</div></li>`).join('')
+        : '<li class="muted pp-empty">Nothing planned yet — add events on the Plot page.</li>';
+      if (first && list.length) {
+        first = false;
+        const next = $('.pp-ev:not(.done)', el);
+        if (next) { next.classList.add('next'); $('.pp-list', el).scrollTop = next.offsetTop - 8; }
+      } else { const next = $('.pp-ev:not(.done)', el); if (next) next.classList.add('next'); }
+    };
+    plotOff = P.ctx.api.watchCol('events', P.pid, l => { list = l; draw(); });
+    el.addEventListener('click', e => {
+      const a = e.target.closest('[data-pp]');
+      if (!a) return;
+      if (a.dataset.pp === 'close') return closePlot();
+      const li = a.closest('.pp-ev');
+      if (a.dataset.pp === 'open') return li.classList.toggle('open');
+      if (a.dataset.pp === 'done') {
+        const ev = list.find(x => x.id === li.dataset.id);
+        if (!ev) return;
+        ev.done = !ev.done;
+        const full = { ...ev };
+        delete full.id;
+        P.ctx.api.saveDoc('events', ev.id, full); // (the whole entry: a locked project scrambles it as one)
+        draw();
+      }
+    });
   }
 
   // ---------- blur as I type (toolbar button; Appearance → Paragraphs can turn it on for the project) ----------

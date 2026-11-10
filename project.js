@@ -5,7 +5,7 @@
    Routes:
      #/p/{pid}/chars          characters, grouped by role
      #/p/{pid}/chars/{id}     one character
-     #/p/{pid}/timeline       events in story order
+     #/p/{pid}/timeline       Plot: the story's events in order, each ticked off once written
      #/p/{pid}/board          the vision board
      #/p/{pid}/ideas          ideas to use in this story
      #/p/{pid}/research[/id]  research topics tagged with this project
@@ -32,7 +32,7 @@ const Project = (() => {
   const showsAll = p => p.kind !== 'short' || p.extras;
   const EXTRA = [['ideas', 'Ideas', 'bulb'], ['research', 'Research', 'research'], ['map', 'Map', 'map']];
   function tabs(p, cur) {
-    const list = [['write', 'Write', 'quill-solid'], ...(showsAll(p) ? [['chars', 'Characters', 'people'], ['timeline', 'Timeline', 'timeline']] : []), ['board', 'Board', 'photo']];
+    const list = [['write', 'Write', 'quill-solid'], ...(showsAll(p) ? [['chars', 'Characters', 'people'], ['timeline', 'Plot', 'timeline']] : []), ['board', 'Board', 'photo']];
     const extra = showsAll(p) ? EXTRA : [];
     const tab = (id, name, ic, cls) => `<a class="ptab ${cls || ''} ${cur === id ? 'on' : ''}" href="#/p/${p.id}${id === 'write' ? '' : '/' + id}" title="${name}">${icon(ic)}<span>${name}</span></a>`;
     // on the iPhone, Ideas and Research sit under More
@@ -110,7 +110,7 @@ const Project = (() => {
     else if (O.tab === 'map') WorldMap.page(box, { ctx: O.ctx, p: O.p, map: O.maps[0] || null, places: O.places, chars: O.chars, chapters: O.chapters, events: O.events, redraw: () => draw(true) });
     else if (O.tab === 'research') { if (!Research.busy()) Research.inProject(box, O.p, O.sub, O.ctx); }
     const stat = $('.pstat');
-    if (stat) stat.textContent = O.tab === 'chars' ? plural(O.chars.length, 'character') : O.tab === 'timeline' ? plural(O.events.length, 'event') : O.tab === 'board' ? plural(O.pins.length, 'photo') : O.tab === 'ideas' ? plural(O.pideas.filter(i => !i.used).length, 'idea') : O.tab === 'map' ? plural(O.places.length, 'place') : '';
+    if (stat) stat.textContent = O.tab === 'chars' ? plural(O.chars.length, 'character') : O.tab === 'timeline' ? `${O.events.filter(e => e.done).length} of ${plural(O.events.length, 'event')} written` : O.tab === 'board' ? plural(O.pins.length, 'photo') : O.tab === 'ideas' ? plural(O.pideas.filter(i => !i.used).length, 'idea') : O.tab === 'map' ? plural(O.places.length, 'place') : '';
   }
 
   const charById = id => O.chars.find(c => c.id === id);
@@ -153,38 +153,68 @@ const Project = (() => {
   ];
   const tieKind = t => { const w = `${t.aIs} ${t.bIs}`; const k = TIE_KINDS.find(([, , re]) => re.test(w)); return k ? k[0] : 'other'; };
   const unquote = w => String(w || '').trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').trim();
-  // Where everyone sits: the most-connected person in the middle, the people tied to each other
-  // pulled close and everyone else pushed apart (a small, steady spring layout), then fitted to the box.
-  function tieLayout(people, ties, W, Hmax, padX, padY, gap) {
+  // Where everyone sits: the most-connected person in the middle, the people tied to them evenly around
+  // a wide oval (half a step round, so nobody sits right on top and looks like the lead), people tied to
+  // each other side by side; anyone not tied to the middle person on an outer ring next to who they're
+  // tied to. Spaced so photos are at least `gap` apart; only as tall as it needs to be.
+  function tieLayout(people, ties, W, padX, padY, gap) {
     const deg = id => ties.filter(t => t.a === id || t.b === id).length;
-    const hub = people.slice().sort((x, y) => deg(y.id) - deg(x.id))[0].id;
-    const order = [hub], q = [hub];
-    while (q.length) { const id = q.shift(); for (const t of ties) { const o = t.a === id ? t.b : t.b === id ? t.a : null; if (o && !order.includes(o)) { order.push(o); q.push(o); } } }
-    people.forEach(c => { if (!order.includes(c.id)) order.push(c.id); });
-    const P = {};
-    order.forEach((id, i) => { const a = -Math.PI / 2 + ((i - 1) / Math.max(1, order.length - 1)) * Math.PI * 2; P[id] = i ? { x: Math.cos(a), y: Math.sin(a) } : { x: 0, y: 0 }; });
-    for (let it = 0; it < 400; it++) {
-      const F = Object.fromEntries(order.map(id => [id, { x: 0, y: 0 }]));
-      for (let i = 0; i < order.length; i++) for (let j = i + 1; j < order.length; j++) {
-        const a = P[order[i]], b = P[order[j]], dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy || 0.01, d = Math.sqrt(d2), f = 0.08 / d2;
-        F[order[i]].x += dx / d * f; F[order[i]].y += dy / d * f; F[order[j]].x -= dx / d * f; F[order[j]].y -= dy / d * f;
-      }
-      for (const t of ties) {
-        const a = P[t.a], b = P[t.b], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, f = (d - 0.9) * 0.1;
-        F[t.a].x += dx / d * f; F[t.a].y += dy / d * f; F[t.b].x -= dx / d * f; F[t.b].y -= dy / d * f;
-      }
-      order.forEach(id => { if (id === hub) return; P[id].x += F[id].x - P[id].x * 0.04; P[id].y += F[id].y - P[id].y * 0.04; }); // (a pull to the middle keeps loose ends close)
+    const tied = (x, y) => ties.some(t => (t.a === x && t.b === y) || (t.a === y && t.b === x));
+    const rank = id => O.chars.findIndex(c => c.id === id);
+    const hub = people.slice().sort((x, y) => deg(y.id) - deg(x.id) || rank(x.id) - rank(y.id))[0].id;
+    const ring = people.filter(c => c.id !== hub && tied(c.id, hub)).map(c => c.id);
+    const outer = people.filter(c => c.id !== hub && !ring.includes(c.id)).map(c => c.id);
+    // the order round the ring with the fewest long ties (every order tried for a small cast)
+    const n = ring.length;
+    const linked = (x, y) => tied(x, y) || outer.some(o => tied(o, x) && tied(o, y));
+    const cost = ord => { let c = 0; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (linked(ord[i], ord[j])) { const d = j - i; c += Math.min(d, n - d) - 1; } return c; };
+    let best = ring.slice();
+    if (n > 2 && n <= 8) {
+      let bestC = cost(best);
+      const perm = (pre, rest) => {
+        if (!rest.length) { const c = cost(pre); if (c < bestC) { bestC = c; best = pre; } return; }
+        rest.forEach((x, i) => perm([...pre, x], rest.filter((_, j) => j !== i)));
+      };
+      perm([ring[0]], ring.slice(1));
+    } else if (n > 8) {
+      // (a big cast: walk from person to tied person)
+      best = [ring[0]];
+      while (best.length < n) { const last = best[best.length - 1]; const nx = ring.find(x => !best.includes(x) && linked(last, x)) || ring.find(x => !best.includes(x)); best.push(nx); }
     }
-    // the same scale both ways (no stretching), as big as fits, but with people at least `gap` apart
-    const mx = Math.max(...order.map(id => Math.abs(P[id].x))) || 1, my = Math.max(...order.map(id => Math.abs(P[id].y))) || 1;
-    let closest = Infinity;
-    for (let i = 0; i < order.length; i++) for (let j = i + 1; j < order.length; j++) closest = Math.min(closest, Math.hypot(P[order[i]].x - P[order[j]].x, P[order[i]].y - P[order[j]].y));
-    const fit = Math.min((W / 2 - padX) / mx, (Hmax / 2 - padY) / my);
-    const sc = Math.min((W / 2 - padX) / mx, Math.max(fit, gap / (closest || 1)));
-    const scx = Math.min((W / 2 - padX) / mx, sc * 1.6); // (a little wider than tall: the page is wide)
-    const H = Math.ceil(2 * (my * sc + padY)); // (only as tall as the web needs)
+    const A = {}; // angle of each person round the middle
+    best.forEach((id, i) => { A[id] = n === 1 ? 0 : -Math.PI / 2 + (i + 0.5) * (2 * Math.PI / n); });
+    // the outer ring: next to whoever they're tied to (or into the widest gap), then spread apart
+    const placed = () => Object.keys(A);
+    for (const id of outer) {
+      const nb = placed().filter(x => tied(x, id));
+      if (nb.length) { const sx = nb.reduce((v, x) => v + Math.cos(A[x]), 0), sy = nb.reduce((v, x) => v + Math.sin(A[x]), 0); A[id] = Math.atan2(sy, sx); }
+      else { const as = placed().map(x => A[x]).sort((p, q) => p - q); let gapA = 0, at = Math.PI / 2; as.forEach((v, i) => { const nx = i + 1 < as.length ? as[i + 1] : as[0] + 2 * Math.PI; if (nx - v > gapA) { gapA = nx - v; at = v + gapA / 2; } }); A[id] = as.length ? at : Math.PI / 2; }
+    }
+    const minStep = outer.length > 1 ? Math.min(0.9, 2 * Math.PI / outer.length) : 0;
+    const os = outer.slice().sort((p, q) => A[p] - A[q]);
+    for (let it = 0; it < 6; it++) for (let i = 0; i < os.length; i++) {
+      const p = os[i], q = os[(i + 1) % os.length];
+      if (p === q) continue;
+      let d = A[q] - A[p]; if (d < 0) d += 2 * Math.PI;
+      if (d < minStep) { A[p] -= (minStep - d) / 2; A[q] += (minStep - d) / 2; }
+    }
+    // sizes: the inner ring far enough out that neighbours (and the middle) are `gap` apart
+    const R1 = n ? Math.max(gap, n > 1 ? gap / (2 * Math.sin(Math.PI / n)) * 0.8 : gap) : 0;
+    const R2 = outer.length ? (n ? R1 : 0) + gap * 1.05 : 0;
+    // where everyone lands round the middle (0, 0), before fitting
+    const raw = { [hub]: { x: 0, y: 0 } };
+    for (const id of best) raw[id] = { x: Math.cos(A[id]) * R1, y: Math.sin(A[id]) * R1 };
+    for (const id of outer) raw[id] = { x: Math.cos(A[id]) * R2, y: Math.sin(A[id]) * R2 };
+    const all = Object.values(raw);
+    const x0 = Math.min(...all.map(q => q.x)), x1 = Math.max(...all.map(q => q.x));
+    const y0 = Math.min(...all.map(q => q.y)), y1 = Math.max(...all.map(q => q.y));
+    // wider than tall (the page is wide), as far as the box allows; then centered on what's actually there
+    const sx = Math.min(1.6, (W - 2 * padX) / ((x1 - x0) || 1));
+    const sy = W < 600 ? 1.7 : sx < 1 ? sx : 1; // (a phone: narrow, so taller than wide instead)
+    const H = Math.ceil((y1 - y0) * sy + 2 * padY);
+    const ox = W / 2 - ((x0 + x1) / 2) * sx, oy = padY - y0 * sy;
     const out = { H };
-    order.forEach(id => { out[id] = { x: W / 2 + P[id].x * scx, y: H / 2 + P[id].y * sc }; });
+    for (const id of Object.keys(raw)) out[id] = { x: ox + raw[id].x * sx, y: oy + raw[id].y * sy };
     return out;
   }
   function drawTies() {
@@ -195,28 +225,25 @@ const Project = (() => {
     const people = O.chars.filter(c => ids.has(c.id)); // (only the ones with a tie)
     const W = box.clientWidth, small = narrow();
     const R = small ? 26 : 34;
-    // (only as tall as it needs to be, so a small cast doesn't feel spread out)
-    const pos = tieLayout(people, ties, W, small ? 560 : 520, R + (small ? 24 : 70), R + 34, small ? 2 * R + 70 : Math.max(2 * R + 150, W * 0.2));
+    const pos = tieLayout(people, ties, W, R + (small ? 20 : 60), R + 34, small ? 2 * R + 64 : 2 * R + 130);
     box.style.height = pos.H + 'px';
-    // a gentle curve for each tie; labels sit on it
-    const curve = (A, B, key) => {
-      const len = Math.hypot(B.x - A.x, B.y - A.y) || 1, bend = (key.charCodeAt(0) % 2 ? 1 : -1) * len * 0.12;
-      return { A, B, C: { x: (A.x + B.x) / 2 - (B.y - A.y) / len * bend, y: (A.y + B.y) / 2 + (B.x - A.x) / len * bend }, len };
-    };
-    const on = (c, t) => ({ x: (1 - t) ** 2 * c.A.x + 2 * (1 - t) * t * c.C.x + t * t * c.B.x, y: (1 - t) ** 2 * c.A.y + 2 * (1 - t) * t * c.C.y + t * t * c.B.y });
-    const nearT = c => Math.min(0.42, Math.max(0.3, (R + 26) / c.len)); // (a word near one end, clear of the photo)
+    // straight lines; labels sit on them
+    const line = (A, B) => ({ A, B, len: Math.hypot(B.x - A.x, B.y - A.y) || 1 });
+    const on = (c, t) => ({ x: c.A.x + (c.B.x - c.A.x) * t, y: c.A.y + (c.B.y - c.A.y) * t });
+    // (a word near one end, clear of the photo -- and further out when the line leaves downward, past the name)
+    const nearT = (c, fromA) => { const dy = (fromA ? c.B.y - c.A.y : c.A.y - c.B.y) / c.len; return Math.min(0.45, Math.max(0.28, (R + 26 + Math.max(0, dy) * 30) / c.len)); };
     const lab = (p, text, t) => `<span class="tie-lab" data-a="${t.a}" data-b="${t.b}" style="left:${p.x}px;top:${p.y}px">${esc(text)}</span>`;
     let paths = '', labels = '';
     const kinds = new Set();
     for (const t of ties) {
-      const c = curve(pos[t.a], pos[t.b], t.a + t.b), kind = tieKind(t);
+      const c = line(pos[t.a], pos[t.b]), kind = tieKind(t);
       kinds.add(kind);
-      paths += `<path class="k-${kind}" data-a="${t.a}" data-b="${t.b}" d="M${c.A.x} ${c.A.y} Q${c.C.x} ${c.C.y} ${c.B.x} ${c.B.y}"/>`;
+      paths += `<path class="k-${kind}" data-a="${t.a}" data-b="${t.b}" d="M${c.A.x} ${c.A.y} L${c.B.x} ${c.B.y}"/>`;
       const same = !t.aIs || !t.bIs || t.aIs.toLowerCase() === t.bIs.toLowerCase();
       if (same) labels += lab(on(c, 0.5), t.bIs || t.aIs, t);
       else {
         // (bIs describes b, so it sits at the B end; on a short line, one word goes just above it and one below)
-        const pb = on(c, 1 - nearT(c)), pa = on(c, nearT(c));
+        const pb = on(c, 1 - nearT(c, false)), pa = on(c, nearT(c, true));
         if (Math.hypot(pb.x - pa.x, pb.y - pa.y) < 90) {
           const nx = -(c.B.y - c.A.y) / c.len * 11, ny = (c.B.x - c.A.x) / c.len * 11;
           pb.x += nx; pb.y += ny; pa.x -= nx; pa.y -= ny;
@@ -415,19 +442,20 @@ const Project = (() => {
     });
   }
 
-  // ---------- timeline ----------
-  let tlFilter = '';
+  // ---------- plot (was Timeline) ----------
+  // The story planned ahead, event by event in story order: a title, a summary, and a tick once it's
+  // written. (Older events may also hold when / chapters / chars -- kept, just not shown; map places
+  // still link to events.) The writing page shows the same list beside the page (editor.js plotPanel).
   function timelinePage(box) {
-    const list = tlFilter ? O.events.filter(e => (e.chars || []).includes(tlFilter)) : O.events;
-    const chips = O.chars.length ? `<div class="chips filter">${[['', 'All'], ...O.chars.map(c => [c.id, c.name])].map(([id, n]) => `<button class="chip ${tlFilter === id ? 'on' : ''}" data-tl="${id}">${esc(n)}</button>`).join('')}</div>` : '';
-    box.innerHTML = `<div class="ps-head"><h1>Timeline</h1><button class="btn" data-a="add-ev">${icon('plus')} Add an event</button></div>${chips}
-      ${O.events.length ? `<ol class="tl" id="tl">${list.map(ev => `<li class="tl-ev" data-id="${ev.id}"><span class="tl-dot"></span><button class="tl-card" data-ev="${ev.id}">
-        ${ev.when ? `<span class="tl-when">${esc(ev.when)}</span>` : ''}<h3>${esc(ev.title || 'Untitled event')}</h3>${ev.text ? `<p>${esc(ev.text.length > 220 ? ev.text.slice(0, 220) + '…' : ev.text)}</p>` : ''}
-        <span class="tl-tags">${(ev.chapters || []).map(id => O.chapters.find(c => c.id === id)).filter(Boolean).map(c => `<span class="tag ch">${icon('book')}${esc(chapterName(c))}</span>`).join('')}${(ev.chars || []).map(charById).filter(Boolean).map(c => `<span class="tag">${esc(c.name)}</span>`).join('')}</span>
-      </button></li>`).join('')}</ol>${tlFilter ? '<p class="hint center">Showing only events with this character. Pick “All” to drag them into a new order.</p>' : '<p class="hint center">Drag an event to move it in the story.</p>'}`
-        : empty('No events yet. Add the big moments of your story in the order they happen.')}`;
+    const done = O.events.filter(e => e.done).length;
+    box.innerHTML = `<div class="ps-head"><h1>Plot</h1><button class="btn" data-a="add-ev">${icon('plus')} Add an event</button></div>
+      ${O.events.length ? `<p class="pl-count">${done} of ${plural(O.events.length, 'event')} written</p>
+      <ol class="tl pl" id="tl">${O.events.map(ev => `<li class="tl-ev ${ev.done ? 'done' : ''}" data-id="${ev.id}"><button class="pl-tick" data-done="${ev.id}" title="${ev.done ? 'Written — tap to undo' : 'Mark as written'}" aria-label="${ev.done ? 'Written' : 'Mark as written'}" aria-pressed="${ev.done ? 'true' : 'false'}">${icon('check')}</button><button class="tl-card" data-ev="${ev.id}">
+        <h3>${esc(ev.title || 'Untitled event')}</h3>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}
+      </button></li>`).join('')}</ol><p class="hint center">Drag an event to move it in the story. Tick it once it’s written.</p>`
+        : empty('Nothing planned yet. Add the events of your story in the order they happen — a title and a short summary each.')}`;
     const tl = $('#tl');
-    if (tl && !tlFilter) sortable(tl, '.tl-ev', {
+    if (tl) sortable(tl, '.tl-ev', {
       key: el => el.dataset.id,
       onDrop: ids => {
         const list2 = ids.map((id, i) => ({ id, order: i + 1 }));
@@ -436,26 +464,30 @@ const Project = (() => {
       },
     });
   }
+  // tick / untick "written" (the whole entry is saved: a locked project scrambles it as one)
+  function toggleDone(id) {
+    const ev = O.events.find(e => e.id === id);
+    if (!ev) return;
+    ev.done = !ev.done;
+    const full = { ...ev };
+    delete full.id;
+    O.ctx.api.saveDoc('events', id, full);
+    draw();
+  }
   function evSheet(ev) {
     const isNew = !ev;
-    ev = ev ? { ...ev, chapters: [...(ev.chapters || [])], chars: [...(ev.chars || [])] } : { pid: O.pid, order: nextOrder(O.events), title: '', when: '', text: '', chapters: [], chars: [] };
-    const chip = (attr, id, name, on) => `<button class="chip ${on ? 'on' : ''}" ${attr}="${id}">${esc(name)}</button>`;
+    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), title: '', text: '', done: false };
     const el = sheet(`<h2>${isNew ? 'New event' : 'Event'}</h2>
-      <div class="field"><label for="ev-title">What happens</label><input class="input" id="ev-title" value="${esc(ev.title)}" placeholder="Wren finds the tracks" autofocus></div>
-      <div class="field"><label for="ev-when">When <small>(anything — “Day 3, evening”, “Summer 1998”)</small></label><input class="input" id="ev-when" value="${esc(ev.when)}"></div>
-      <div class="field"><label for="ev-text">Details</label><textarea class="input" id="ev-text" rows="4">${esc(ev.text)}</textarea></div>
-      ${O.chapters.length ? `<div class="field"><label>In which chapter?</label><div class="chips">${O.chapters.map(c => chip('data-evch', c.id, chapterName(c), ev.chapters.includes(c.id))).join('')}</div></div>` : ''}
-      ${O.chars.length ? `<div class="field"><label>Who’s there?</label><div class="chips">${O.chars.map(c => chip('data-evc', c.id, c.name, ev.chars.includes(c.id))).join('')}</div></div>` : ''}
+      <div class="field"><label for="ev-title">What happens</label><input class="input" id="ev-title" value="${esc(ev.title || '')}" placeholder="Wren finds the tracks" autofocus></div>
+      <div class="field"><label for="ev-text">Summary</label><textarea class="input" id="ev-text" rows="6" placeholder="What happens, who’s there, why it matters…">${esc(ev.text || '')}</textarea></div>
+      <label class="check"><input type="checkbox" id="ev-done" ${ev.done ? 'checked' : ''}> Written</label>
       <div class="row ${isNew ? 'end' : 'between'}">${isNew ? '' : `<button class="btn quiet danger-text" id="ev-del">${icon('trash')} Delete</button>`}
         <span><button class="btn quiet" data-act="close">Cancel</button> <button class="btn" id="ev-save">Save</button></span></div>`);
     el.addEventListener('click', async e => {
-      const a = e.target.closest('[data-evch]'), b = e.target.closest('[data-evc]');
-      if (a) { const id = a.dataset.evch; ev.chapters = ev.chapters.includes(id) ? ev.chapters.filter(x => x !== id) : [...ev.chapters, id]; a.classList.toggle('on'); }
-      if (b) { const id = b.dataset.evc; ev.chars = ev.chars.includes(id) ? ev.chars.filter(x => x !== id) : [...ev.chars, id]; b.classList.toggle('on'); }
       if (e.target.closest('#ev-save')) {
         ev.title = $('#ev-title').value.trim() || 'Untitled event';
-        ev.when = $('#ev-when').value.trim();
         ev.text = $('#ev-text').value.trim();
+        ev.done = $('#ev-done').checked;
         const full = { ...ev };
         delete full.id;
         if (isNew) O.ctx.api.addDoc('events', full); else O.ctx.api.saveDoc('events', ev.id, full);
@@ -786,8 +818,8 @@ const Project = (() => {
     if (ifl) { ideaFilter = ifl.dataset.if; return draw(); }
     const pi = t.closest('[data-pi]');
     if (pi) return ideaSheet(O.ctx, O.p, O.pideas.find(x => x.id === pi.dataset.pi), { chapters: O.chapters, chars: O.chars });
-    const tl = t.closest('[data-tl]');
-    if (tl) { tlFilter = tl.dataset.tl; return draw(); }
+    const dn = t.closest('[data-done]');
+    if (dn) return toggleDone(dn.dataset.done);
     const ev = t.closest('[data-ev]');
     if (ev) return evSheet(O.events.find(x => x.id === ev.dataset.ev));
     const pin = t.closest('.pin');

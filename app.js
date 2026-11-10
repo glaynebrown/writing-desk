@@ -268,7 +268,7 @@
       <div class="field"><label for="np-title">Title</label><input class="input" id="np-title" value="${esc(pre.title || '')}" placeholder="Working title is fine" autofocus></div>
       <div class="field"><label>Kind</label>
         <div class="kinds" id="np-kind">
-          <button data-k="book" class="${kind === 'book' ? 'on' : ''}">${icon('book-solid')}<b>Book</b><span>Chapters, characters, a timeline, a cover</span></button>
+          <button data-k="book" class="${kind === 'book' ? 'on' : ''}">${icon('book-solid')}<b>Book</b><span>Chapters, characters, a plot, a cover</span></button>
           <button data-k="short" class="${kind === 'short' ? 'on' : ''}">${icon('quill-solid')}<b>Short piece</b><span>A fic or one-off · one or two chapters</span></button>
         </div></div>
       <div class="field"><label>Look <small>(you can change everything later)</small></label>${lookSwatches(preset)}</div>
@@ -379,7 +379,7 @@
             <p class="hint">A short piece can grow into a book any time — nothing is lost.</p></div>
           <div class="field"><label for="dt-pin">Pinterest board for this project <small>(optional)</small></label><input class="input" id="dt-pin" inputmode="url" value="${esc(p.pinterest || '')}" placeholder="https://www.pinterest.com/…"></div>
           <div class="field"><label for="dt-canva">Canva design (like the cover) <small>(optional)</small></label><input class="input" id="dt-canva" inputmode="url" value="${esc(p.canva || '')}" placeholder="https://www.canva.com/design/…"></div>
-          ${p.kind === 'short' ? `<label class="check"><input type="checkbox" id="dt-extras" ${p.extras ? 'checked' : ''}> Show Characters, Timeline, Ideas and Research for this short piece</label>` : ''}
+          ${p.kind === 'short' ? `<label class="check"><input type="checkbox" id="dt-extras" ${p.extras ? 'checked' : ''}> Show Characters, Plot, Ideas and Research for this short piece</label>` : ''}
           <div class="field"><label>Page size <small>(for Pages and the cover)</small></label><div class="sizes" id="dt-size">${SIZES.map(s => `<button data-w="${s.w}" data-h="${s.h}" class="${size.w === s.w && size.h === s.h ? 'on' : ''}"><b>${s.name}</b><small>${s.note}</small></button>`).join('')}</div></div>
         </div>
       </div>
