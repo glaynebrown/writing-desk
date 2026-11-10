@@ -380,12 +380,13 @@
           <div class="field"><label for="dt-pin">Pinterest board for this project <small>(optional)</small></label><input class="input" id="dt-pin" inputmode="url" value="${esc(p.pinterest || '')}" placeholder="https://www.pinterest.com/…"></div>
           <div class="field"><label for="dt-canva">Canva design (like the cover) <small>(optional)</small></label><input class="input" id="dt-canva" inputmode="url" value="${esc(p.canva || '')}" placeholder="https://www.canva.com/design/…"></div>
           ${p.kind === 'short' ? `<label class="check"><input type="checkbox" id="dt-extras" ${p.extras ? 'checked' : ''}> Show Characters, Plot, Ideas and Research for this short piece</label>` : ''}
+          ${p.locked ? '' : `<label class="check"><input type="checkbox" id="dt-backup" ${p.backup ? 'checked' : ''}> Back up to Google Drive every night <small class="muted">— a Google Doc in your Writings folder (the Drive Backup script)</small></label>`}
           <div class="field"><label>Page size <small>(for Pages and the cover)</small></label><div class="sizes" id="dt-size">${SIZES.map(s => `<button data-w="${s.w}" data-h="${s.h}" class="${size.w === s.w && size.h === s.h ? 'on' : ''}"><b>${s.name}</b><small>${s.note}</small></button>`).join('')}</div></div>
         </div>
       </div>
       <div class="row end"><button class="btn quiet" data-act="close">Cancel</button><button class="btn" id="dt-save">Save</button></div>`, { cls: 'wide', back: back && { ...back, dirty: () => fields() !== startFields } });
     // (for "Leave without saving?" on the back link)
-    const fields = () => JSON.stringify([$('#dt-title') && $('#dt-title').value, kind, size, $('#dt-pin') && $('#dt-pin').value, $('#dt-canva') && $('#dt-canva').value, $('#dt-extras') ? $('#dt-extras').checked : null, !!newCover, dropCover]);
+    const fields = () => JSON.stringify([$('#dt-title') && $('#dt-title').value, kind, size, $('#dt-pin') && $('#dt-pin').value, $('#dt-canva') && $('#dt-canva').value, $('#dt-extras') ? $('#dt-extras').checked : null, $('#dt-backup') ? $('#dt-backup').checked : null, !!newCover, dropCover]);
     const startFields = fields();
     fillImages(el);
     el.addEventListener('click', async e => {
@@ -414,6 +415,7 @@
         const link = v => { v = v.trim(); return !v ? '' : /^https?:\/\//i.test(v) ? v : 'https://' + v; };
         const patch = { title: $('#dt-title').value.trim() || 'Untitled', kind, pageSize: size, pinterest: link($('#dt-pin').value), canva: link($('#dt-canva').value) };
         if ($('#dt-extras')) patch.extras = $('#dt-extras').checked;
+        if ($('#dt-backup')) patch.backup = $('#dt-backup').checked; // (read by the Drive Backup Apps Script)
         if (newCover) {
           patch.coverId = API.putImage({ ...newCover, pid: p.id });
           if (p.coverId) API.deleteImage(p.coverId);

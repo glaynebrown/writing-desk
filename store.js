@@ -4,7 +4,8 @@
    Firestore layout -- everything is under the one writer's own account:
      users/{uid}                    settings: { shelfView, night {mode, on}, spot, author, textSize }
      users/{uid}/projects/{pid}     { title, kind 'book'|'short', look, coverId, coverLink, pinterest,
-                                      pageSize {w, h} (inches), sceneBreak, words, createdAt, updatedAt }
+                                      pageSize {w, h} (inches), sceneBreak, words, backup (nightly Google Drive copy,
+                                      see ../Drive Backup), createdAt, updatedAt }
      users/{uid}/chapters/{cid}     { pid, title, order, html, words, notes (chapter notes),
                                       mnotes {id: {text, at}} (margin notes), updatedAt }
      users/{uid}/images/{iid}       { data (a compressed photo as a data URL), w, h, pid }  (older locked ones: enc)
