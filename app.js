@@ -840,6 +840,7 @@
       ${open.length ? `<div class="ideas">${open.map(card).join('')}</div>` : `<div class="empty">${candle('empty-candle')}<p>No ideas jotted down yet.</p></div>`}
       ${started.length ? `<h2 class="sec-title">Started</h2><div class="ideas started">${started.map(card).join('')}</div>` : ''}
     </div>`;
+    $$('.ideas', view).forEach(b => UI.ideaCards(b));
     view.onclick = e => {
       if (e.target.closest('#idea-new, #idea-new2')) return ideaSheet(null);
       const st = e.target.closest('[data-start]');

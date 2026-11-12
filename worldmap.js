@@ -188,7 +188,7 @@ const WorldMap = (() => {
       <div class="field"><label for="pl-notes">Notes</label><textarea class="input" id="pl-notes" rows="4" placeholder="What it’s like, who lives there, what happened here…">${esc(it.notes)}</textarea></div>
       ${S.chapters.length ? `<div class="field"><label>Chapters set here</label><div class="chips">${S.chapters.map((c, i) => chip('data-plh', c.id, c.title || `Chapter ${i + 1}`, it.chapters.includes(c.id))).join('')}</div></div>` : ''}
       ${S.chars.length ? `<div class="field"><label>Characters</label><div class="chips">${S.chars.map(c => chip('data-plc', c.id, c.name, it.chars.includes(c.id))).join('')}</div></div>` : ''}
-      ${S.events.length ? `<div class="field"><label>Plot events here</label><div class="chips">${S.events.map(ev => chip('data-ple', ev.id, ev.title || 'Untitled event', it.events.includes(ev.id))).join('')}</div></div>` : ''}
+      ${S.events.some(e => e.kind !== 'section') ? `<div class="field"><label>Plot points here</label><div class="chips">${S.events.filter(e => e.kind !== 'section').map(ev => chip('data-ple', ev.id, Project.plot.text(ev, S.chapters || []) + (ev.text ? ': ' + ev.text.slice(0, 40) + (ev.text.length > 40 ? '…' : '') : ''), it.events.includes(ev.id))).join('')}</div></div>` : ''}
       <div class="row ${isNew ? 'end' : 'between'}">${isNew ? '' : `<button class="btn quiet danger-text" id="pl-del">${icon('trash')} Delete</button>`}
         <span><button class="btn quiet" data-act="close">Cancel</button> <button class="btn" id="pl-save">Save</button></span></div>`);
     const toggle = (arr, id) => (arr.includes(id) ? arr.filter(x => x !== id) : [...arr, id]);

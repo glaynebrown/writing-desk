@@ -322,6 +322,7 @@ const Editor = (() => {
     renderList();
     renderWords();
     showSync();
+    if (plotRedraw) plotRedraw();
     if (first) {
       sceneMini();
       setMode();
@@ -1632,10 +1633,11 @@ const Editor = (() => {
   }
 
   // ---------- the Plot beside the page (toolbar button) ----------
-  // The project's events in story order (the Plot tab, project.js), opened at the first one not yet
-  // written; tick one off from here. Adding and changing events happens on the Plot tab.
-  let plotOff = null;
+  // The project's plot, sections and all (the Plot tab, project.js), opened at the chapter the cursor is in
+  // (or the first point not yet written); tick one off from here. Adding and changing happens on the Plot tab.
+  let plotOff = null, plotRedraw = null;
   function closePlot() {
+    plotRedraw = null;
     if (plotOff) { plotOff(); plotOff = null; }
     const el = $('#plot-panel');
     if (el) el.remove();
@@ -1650,26 +1652,34 @@ const Editor = (() => {
     el.className = 'plot-panel';
     el.innerHTML = `<div class="pp-head"><b>Plot</b><span class="pp-count"></span><button class="pp-x" data-pp="close" title="Close" aria-label="Close">${icon('x')}</button></div>
       <ol class="pp-list"><li class="muted pp-empty">Opening…</li></ol>
-      <a class="pp-edit" href="#/p/${P.pid}/timeline">Add or change events on the Plot page</a>`;
+      <a class="pp-edit" href="#/p/${P.pid}/timeline">Add or change plot points on the Plot page</a>`;
     document.body.appendChild(el);
     document.body.classList.add('plot-open'); // (the page moves over to make room)
     onResize();
     const b = $('.tb[data-act="plot"]');
     if (b) b.classList.add('on');
     let list = [], first = true;
+    const K = Project.plot;
     const draw = () => {
-      const done = list.filter(e => e.done).length;
-      $('.pp-count', el).textContent = list.length ? `${done} of ${list.length} written` : '';
-      $('.pp-list', el).innerHTML = list.length ? list.map(ev => `<li class="pp-ev ${ev.done ? 'done' : ''}" data-id="${ev.id}">
-          <button class="pl-tick" data-pp="done" title="${ev.done ? 'Written — tap to undo' : 'Mark as written'}" aria-pressed="${ev.done ? 'true' : 'false'}">${icon('check')}</button>
-          <div class="pp-text" data-pp="open"><b>${esc(ev.title || 'Untitled event')}</b>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}</div></li>`).join('')
-        : '<li class="muted pp-empty">Nothing planned yet — add events on the Plot page.</li>';
+      const ch = P.chapters, pts = list.filter(e => e.kind !== 'section');
+      const cur = P.byId[P.current], here = cur ? K.keyOf(cur, ch) : '';
+      $('.pp-count', el).textContent = pts.length ? `${pts.filter(e => e.done).length} of ${pts.length} written` : '';
+      $('.pp-list', el).innerHTML = list.length ? K.rows(list).map(ev => {
+        if (ev.kind === 'section') return `<li class="pp-sec"><b>${esc(ev.title || 'Untitled section')}</b>${ev.range ? `<span>${esc(ev.range)}</span>` : ''}</li>`;
+        const st = K.status(ev, ch), l = K.label(ev, ch);
+        return `<li class="pp-ev st-${st} ${ev.done ? 'done' : ''} ${ev.ch && ev.ch === here ? 'here' : ''}" data-id="${ev.id}">
+          <button class="pl-tick" data-pp="done" title="${K.tickTitle(st)}" aria-pressed="${ev.done ? 'true' : 'false'}">${K.tickHtml(st)}</button>
+          <div class="pp-text" data-pp="open"><b>${esc(l.own ? `${l.name} · ${l.own}` : l.name)}</b>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}</div></li>`;
+      }).join('')
+        : '<li class="muted pp-empty">Nothing planned yet — add plot points on the Plot page.</li>';
+      // opened at the chapter being written (or the first point not done yet)
       if (first && list.length) {
         first = false;
-        const next = $('.pp-ev:not(.done)', el);
-        if (next) { next.classList.add('next'); $('.pp-list', el).scrollTop = next.offsetTop - 8; }
-      } else { const next = $('.pp-ev:not(.done)', el); if (next) next.classList.add('next'); }
+        const at = $('.pp-ev.here', el) || $('.pp-ev:not(.done)', el);
+        if (at) { const prev = at.previousElementSibling; $('.pp-list', el).scrollTop = (prev && prev.classList.contains('pp-sec') ? prev : at).offsetTop - 8; }
+      }
     };
+    plotRedraw = draw; // (also when the chapters change: a quill appears once a chapter has words)
     plotOff = P.ctx.api.watchCol('events', P.pid, l => { list = l; draw(); });
     el.addEventListener('click', e => {
       const a = e.target.closest('[data-pp]');

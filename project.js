@@ -96,7 +96,7 @@ const Project = (() => {
     if (O.tab === 'research') draw(); // research topics live outside the project
   }
 
-  const ready = () => O.loaded.chars && (O.tab !== 'timeline' || O.loaded.events) && (O.tab !== 'board' || O.loaded.pins) && (O.tab !== 'ideas' || O.loaded.pideas) && (O.tab !== 'map' || (O.loaded.maps && O.loaded.places && O.loaded.events));
+  const ready = () => O.loaded.chars && (O.tab !== 'timeline' || (O.loaded.events && O.loaded.chapters)) && (O.tab !== 'board' || O.loaded.pins) && (O.tab !== 'ideas' || O.loaded.pideas) && (O.tab !== 'map' || (O.loaded.maps && O.loaded.places && O.loaded.events));
   function draw(force) {
     if (!O || !ready()) return;
     const box = $('#pscreen');
@@ -110,7 +110,7 @@ const Project = (() => {
     else if (O.tab === 'map') WorldMap.page(box, { ctx: O.ctx, p: O.p, map: O.maps[0] || null, places: O.places, chars: O.chars, chapters: O.chapters, events: O.events, redraw: () => draw(true) });
     else if (O.tab === 'research') { if (!Research.busy()) Research.inProject(box, O.p, O.sub, O.ctx); }
     const stat = $('.pstat');
-    if (stat) stat.textContent = O.tab === 'chars' ? plural(O.chars.length, 'character') : O.tab === 'timeline' ? `${O.events.filter(e => e.done).length} of ${plural(O.events.length, 'event')} written` : O.tab === 'board' ? plural(O.pins.length, 'photo') : O.tab === 'ideas' ? plural(O.pideas.filter(i => !i.used).length, 'idea') : O.tab === 'map' ? plural(O.places.length, 'place') : '';
+    if (stat) stat.textContent = O.tab === 'chars' ? plural(O.chars.length, 'character') : O.tab === 'timeline' ? (pts => `${pts.filter(e => e.done).length} of ${plural(pts.length, 'plot point')} written`)(O.events.filter(e => e.kind !== 'section')) : O.tab === 'board' ? plural(O.pins.length, 'photo') : O.tab === 'ideas' ? plural(O.pideas.filter(i => !i.used).length, 'idea') : O.tab === 'map' ? plural(O.places.length, 'place') : '';
   }
 
   const charById = id => O.chars.find(c => c.id === id);
@@ -443,24 +443,75 @@ const Project = (() => {
   }
 
   // ---------- plot (was Timeline) ----------
-  // The story planned ahead, event by event in story order: a title, a summary, and a tick once it's
-  // written. (Older events may also hold when / chapters / chars -- kept, just not shown; map places
-  // still link to events.) The writing page shows the same list beside the page (editor.js plotPanel).
+  // The story planned ahead, in story order, in the 'events' collection:
+  //   a section    { pid, order, kind: 'section', title }   ("Setting the scene"; its chapter range is worked out)
+  //   a plot point { pid, order, ch, text, done }           ch = 'n:4' = Chapter 4 (counting numbered chapters only,
+  //                                                          so it can be planned before it's written) or 's:Prologue'
+  // A chapter can have one point or several. A point shows ○ (planned), a quill once its chapter has words in it,
+  // and ✓ once she ticks it. (Older events may also hold title / when / chapters / chars -- kept; with no ch, the
+  // title stands in.) The writing page shows the same list beside the page (editor.js plotPanel).
+  const AUTO_TITLE = /^chapter\s+([a-z]+(-[a-z]+)?|\d+)$/i;
+  const SPECIAL_WORDS = ['Foreword', 'Preface', 'Prologue', 'Interlude', 'Epilogue', 'Afterword'];
+  const PlotK = {
+    keyOf(c, chapters) { return c.special ? 's:' + c.special : 'n:' + (chapters.filter(x => !x.special).indexOf(c) + 1); },
+    chapterOf(key, chapters) {
+      if (!key) return null;
+      const v = key.slice(2);
+      return key[0] === 's' ? chapters.find(c => c.special === v) || null : chapters.filter(c => !c.special)[Number(v) - 1] || null;
+    },
+    // "Chapter 4" / "Prologue", and the chapter's own title if she gave it one
+    label(ev, chapters) {
+      if (!ev.ch) return { name: ev.title || 'No chapter yet', own: '' };
+      const name = ev.ch[0] === 's' ? ev.ch.slice(2) : 'Chapter ' + ev.ch.slice(2);
+      const c = PlotK.chapterOf(ev.ch, chapters), t = ((c && c.title) || '').trim();
+      return { name, own: t && !AUTO_TITLE.test(t) && t !== (c && c.special) ? t : '' };
+    },
+    text(ev, chapters) { const l = PlotK.label(ev, chapters); return l.own ? `${l.name} · ${l.own}` : l.name; },
+    status(ev, chapters) { if (ev.done) return 'done'; const c = PlotK.chapterOf(ev.ch, chapters); return c && (c.words || 0) > 0 ? 'writing' : 'planned'; },
+    // "Chapters 1–3" for the points under a section
+    range(points) {
+      const keys = []; points.forEach(e => { if (e.ch && !keys.includes(e.ch)) keys.push(e.ch); });
+      if (!keys.length) return '';
+      const nm = k => (k[0] === 's' ? k.slice(2) : 'Chapter ' + k.slice(2));
+      const nums = keys.filter(k => k[0] === 'n').map(k => +k.slice(2));
+      if (keys.length === nums.length) { const lo = Math.min(...nums), hi = Math.max(...nums); return lo === hi ? `Chapter ${lo}` : `Chapters ${lo}–${hi}`; }
+      return keys.length === 1 ? nm(keys[0]) : `${nm(keys[0])} – ${nm(keys[keys.length - 1])}`;
+    },
+    // the list with each section's range filled in
+    rows(events) {
+      return events.map((e, i) => {
+        if (e.kind !== 'section') return e;
+        const pts = [];
+        for (let j = i + 1; j < events.length && events[j].kind !== 'section'; j++) pts.push(events[j]);
+        return { ...e, range: PlotK.range(pts) };
+      });
+    },
+    tickHtml(st) { return icon(st === 'writing' ? 'quill-solid' : 'check'); },
+    tickTitle(st) { return st === 'done' ? 'Written — tap to undo' : st === 'writing' ? 'Being written — tap once it’s done' : 'Mark as written'; },
+  };
   function timelinePage(box) {
-    const done = O.events.filter(e => e.done).length;
-    box.innerHTML = `<div class="ps-head"><h1>Plot</h1><button class="btn" data-a="add-ev">${icon('plus')} Add an event</button></div>
-      ${O.events.length ? `<p class="pl-count">${done} of ${plural(O.events.length, 'event')} written</p>
-      <ol class="tl pl" id="tl">${O.events.map(ev => `<li class="tl-ev ${ev.done ? 'done' : ''}" data-id="${ev.id}"><button class="pl-tick" data-done="${ev.id}" title="${ev.done ? 'Written — tap to undo' : 'Mark as written'}" aria-label="${ev.done ? 'Written' : 'Mark as written'}" aria-pressed="${ev.done ? 'true' : 'false'}">${icon('check')}</button><button class="tl-card" data-ev="${ev.id}">
-        <h3>${esc(ev.title || 'Untitled event')}</h3>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}
-      </button></li>`).join('')}</ol><p class="hint center">Drag an event to move it in the story. Tick it once it’s written.</p>`
-        : empty('Nothing planned yet. Add the events of your story in the order they happen — a title and a short summary each.')}`;
+    const ch = O.chapters;
+    const pts = O.events.filter(e => e.kind !== 'section'), done = pts.filter(e => e.done).length;
+    const row = ev => {
+      if (ev.kind === 'section') return `<li class="tl-ev pl-sec" data-id="${ev.id}"><button class="pl-sec-card" data-sec="${ev.id}"><h2>${esc(ev.title || 'Untitled section')}</h2>${ev.range ? `<span class="pl-range">${esc(ev.range)}</span>` : ''}</button></li>`;
+      const st = PlotK.status(ev, ch), l = PlotK.label(ev, ch);
+      return `<li class="tl-ev st-${st} ${ev.done ? 'done' : ''}" data-id="${ev.id}"><button class="pl-tick" data-done="${ev.id}" title="${PlotK.tickTitle(st)}" aria-label="${PlotK.tickTitle(st)}" aria-pressed="${ev.done ? 'true' : 'false'}">${PlotK.tickHtml(st)}</button><button class="tl-card" data-ev="${ev.id}">
+        <h3>${l.own ? `<span class="pl-num">${esc(l.name)}</span>${esc(l.own)}` : esc(l.name)}</h3>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}
+      </button></li>`;
+    };
+    box.innerHTML = `<div class="ps-head"><h1>Plot</h1><div class="head-btns"><button class="btn quiet" data-a="add-sec">${icon('plus')} Section</button><button class="btn" data-a="add-ev">${icon('plus')} Plot point</button></div></div>
+      ${O.events.length ? `${pts.length ? `<p class="pl-count">${done} of ${plural(pts.length, 'plot point')} written</p>` : ''}
+      <ol class="tl pl" id="tl">${PlotK.rows(O.events).map(row).join('')}</ol><p class="hint center">Drag to move things around. ○ planned · ${icon('quill-solid', 'inline')} being written (its chapter has words) · ✓ tick it once it’s done.</p>`
+        : empty('Nothing planned yet. Add your story’s plot points chapter by chapter — and sections like “Setting the scene” to group them.')}`;
     const tl = $('#tl');
     if (tl) sortable(tl, '.tl-ev', {
       key: el => el.dataset.id,
       onDrop: ids => {
         const list2 = ids.map((id, i) => ({ id, order: i + 1 }));
         list2.forEach(x => { const ev = O.events.find(e => e.id === x.id); if (ev) ev.order = x.order; });
+        O.events.sort((a, b) => (a.order || 0) - (b.order || 0));
         O.ctx.api.orderDocs('events', list2);
+        draw(); // (the section ranges follow)
       },
     });
   }
@@ -474,18 +525,31 @@ const Project = (() => {
     O.ctx.api.saveDoc('events', id, full);
     draw();
   }
+  // the chapter choices: special sections, and the numbered chapters (a few past the last one, to plan ahead)
+  function chapterChoices(chapters, events) {
+    const planned = events.filter(e => e.ch && e.ch[0] === 'n').map(e => +e.ch.slice(2));
+    const n = Math.max(chapters.filter(c => !c.special).length, ...planned, 0) + 5;
+    const specials = [...new Set([...SPECIAL_WORDS, ...chapters.filter(c => c.special).map(c => c.special), ...events.filter(e => e.ch && e.ch[0] === 's').map(e => e.ch.slice(2))])];
+    const before = specials.filter(w => ['Foreword', 'Preface', 'Prologue'].includes(w)), after = specials.filter(w => !before.includes(w));
+    const opt = k => { const l = PlotK.label({ ch: k }, chapters); return [k, l.own ? `${l.name} · ${l.own}` : l.name]; };
+    return [...before.map(w => opt('s:' + w)), ...Array.from({ length: n }, (_, i) => opt('n:' + (i + 1))), ...after.map(w => opt('s:' + w))];
+  }
   function evSheet(ev) {
     const isNew = !ev;
-    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), title: '', text: '', done: false };
-    const el = sheet(`<h2>${isNew ? 'New event' : 'Event'}</h2>
-      <div class="field"><label for="ev-title">What happens</label><input class="input" id="ev-title" value="${esc(ev.title || '')}" placeholder="Wren finds the tracks" autofocus></div>
-      <div class="field"><label for="ev-text">Summary</label><textarea class="input" id="ev-text" rows="6" placeholder="What happens, who’s there, why it matters…">${esc(ev.text || '')}</textarea></div>
+    const pts = O.events.filter(e => e.kind !== 'section');
+    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), ch: (pts[pts.length - 1] || {}).ch || 'n:1', text: '', done: false };
+    const choices = chapterChoices(O.chapters, O.events);
+    if (ev.ch && !choices.some(([k]) => k === ev.ch)) choices.push([ev.ch, PlotK.text(ev, O.chapters)]);
+    const el = sheet(`<h2>${isNew ? 'New plot point' : 'Plot point'}</h2>
+      <div class="field"><label for="ev-ch">Chapter</label><select class="input" id="ev-ch">${ev.ch ? '' : '<option value="">Pick a chapter</option>'}${choices.map(([k, n]) => `<option value="${esc(k)}" ${k === ev.ch ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+      ${!ev.ch && ev.title ? `<p class="hint">Was called “${esc(ev.title)}”.</p>` : ''}
+      <div class="field"><label for="ev-text">What happens</label><textarea class="input" id="ev-text" rows="7" placeholder="What happens, who’s there, why it matters…" autofocus>${esc(ev.text || '')}</textarea></div>
       <label class="check"><input type="checkbox" id="ev-done" ${ev.done ? 'checked' : ''}> Written</label>
       <div class="row ${isNew ? 'end' : 'between'}">${isNew ? '' : `<button class="btn quiet danger-text" id="ev-del">${icon('trash')} Delete</button>`}
         <span><button class="btn quiet" data-act="close">Cancel</button> <button class="btn" id="ev-save">Save</button></span></div>`);
     el.addEventListener('click', async e => {
       if (e.target.closest('#ev-save')) {
-        ev.title = $('#ev-title').value.trim() || 'Untitled event';
+        ev.ch = $('#ev-ch').value || '';
         ev.text = $('#ev-text').value.trim();
         ev.done = $('#ev-done').checked;
         const full = { ...ev };
@@ -494,8 +558,32 @@ const Project = (() => {
         closeSheet(true);
       }
       if (e.target.closest('#ev-del')) {
-        if (!(await ask('Delete this event?', esc(ev.title), 'Delete', { danger: true }))) return;
+        if (!(await ask('Delete this plot point?', esc(PlotK.text(ev, O.chapters)), 'Delete', { danger: true }))) return;
         O.ctx.api.deleteDoc('events', ev.id);
+        closeSheet(true);
+      }
+    });
+  }
+  // a section: just its name (deleting it keeps its plot points -- they join the section above)
+  function secSheet(sec) {
+    const isNew = !sec;
+    sec = sec ? { ...sec } : { pid: O.pid, order: nextOrder(O.events), kind: 'section', title: '' };
+    const el = sheet(`<h2>${isNew ? 'New section' : 'Section'}</h2>
+      <div class="field"><label for="sec-title">Name</label><input class="input" id="sec-title" value="${esc(sec.title || '')}" placeholder="Setting the scene" autofocus></div>
+      ${isNew ? '<p class="hint">It goes at the end — drag it above the plot points it starts.</p>' : ''}
+      <div class="row ${isNew ? 'end' : 'between'}">${isNew ? '' : `<button class="btn quiet danger-text" id="sec-del">${icon('trash')} Delete section</button>`}
+        <span><button class="btn quiet" data-act="close">Cancel</button> <button class="btn" id="sec-save">Save</button></span></div>`);
+    el.addEventListener('click', async e => {
+      if (e.target.closest('#sec-save')) {
+        sec.title = $('#sec-title').value.trim() || 'Untitled section';
+        const full = { ...sec };
+        delete full.id;
+        if (isNew) O.ctx.api.addDoc('events', full); else O.ctx.api.saveDoc('events', sec.id, full);
+        closeSheet(true);
+      }
+      if (e.target.closest('#sec-del')) {
+        if (!(await ask('Delete this section?', `“${esc(sec.title)}” goes, but its plot points stay.`, 'Delete section'))) return;
+        O.ctx.api.deleteDoc('events', sec.id);
         closeSheet(true);
       }
     });
@@ -732,6 +820,7 @@ const Project = (() => {
       ${kinds.length ? `<div class="chips filter">${[['', 'All'], ...kinds.map(k => [k, k])].map(([id, n]) => `<button class="chip ${ideaFilter === id ? 'on' : ''}" data-if="${id}">${n}</button>`).join('')}</div>` : ''}
       ${O.pideas.length ? `<div class="ideas">${list.map(ideaCard).join('')}</div>`
         : empty('No ideas yet. Jot them here — or tap the lightbulb while you write.')}`;
+    UI.ideaCards($('.ideas', box));
   }
   function ideaCard(i) {
     const chs = (i.chapters || []).map(id => O.chapters.find(c => c.id === id)).filter(Boolean);
@@ -809,6 +898,7 @@ const Project = (() => {
     const A = a && a.dataset.a;
     if (A === 'add-char') return addChar();
     if (A === 'add-ev') return evSheet(null);
+    if (A === 'add-sec') return secSheet(null);
     if (A === 'pin-add') return addPhotos(await pickFile('image/*', true));
     if (A === 'pin-paste') return pasteButton();
     if (A === 'add-idea') return ideaSheet(O.ctx, O.p, null, { chapters: O.chapters, chars: O.chars });
@@ -818,6 +908,8 @@ const Project = (() => {
     if (ifl) { ideaFilter = ifl.dataset.if; return draw(); }
     const pi = t.closest('[data-pi]');
     if (pi) return ideaSheet(O.ctx, O.p, O.pideas.find(x => x.id === pi.dataset.pi), { chapters: O.chapters, chars: O.chars });
+    const sc = t.closest('[data-sec]');
+    if (sc) return secSheet(O.events.find(x => x.id === sc.dataset.sec));
     const dn = t.closest('[data-done]');
     if (dn) return toggleDone(dn.dataset.done);
     const ev = t.closest('[data-ev]');
@@ -864,5 +956,5 @@ const Project = (() => {
     }
   }
 
-  return { tabs, top, open, close, update, isOpen, showsAll, quickIdea };
+  return { tabs, top, open, close, update, isOpen, showsAll, quickIdea, plot: PlotK };
 })();

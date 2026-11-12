@@ -246,6 +246,19 @@ path.k-other { stroke: var(--ink-faint); }
 .pl-tick:hover { color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .done > .pl-tick { background: var(--accent); color: var(--paper); }
 .tl-ev.done .tl-card { opacity: .55; }
+.st-writing > .pl-tick { color: var(--accent-deep); background: var(--accent-wash); }
+.pl-tick .icon { pointer-events: none; }
+.tl-card h3 .pl-num { display: block; font-family: inherit; font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-deep); margin-bottom: 1px; }
+/* a section: a heading on the line, with its chapter range */
+.pl-sec { margin: 26px 0 12px; }
+.pl-sec:first-child { margin-top: 4px; }
+.pl-sec-card { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; width: 100%; text-align: left; border: 0; background: none; padding: 2px 0; cursor: pointer; color: var(--ink); }
+.pl-sec-card h2 { font-size: calc(26px * var(--ts)); margin: 0; }
+.pl-sec-card:hover h2 { color: var(--accent-deep); }
+.pl-range { font-size: 13.5px; color: var(--ink-soft); font-style: italic; }
+.pl-sec::before { content: ''; position: absolute; left: -24px; top: 12px; width: 14px; height: 14px; border-radius: 3px; background: var(--accent); transform: rotate(45deg); }
+.pl-sec { position: relative; }
+.hint .icon.inline { width: 14px; height: 14px; vertical-align: -2px; }
 .tl-ev.done .tl-card:hover { opacity: .85; }
 /* the Plot beside the writing page (editor.js) -- a panel on the right; a sheet from the bottom on the iPhone */
 .plot-panel { position: fixed; right: 16px; top: 124px; bottom: 16px; width: 320px; z-index: 30; display: flex; flex-direction: column; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 40px rgba(40, 25, 10, .18); }
@@ -257,7 +270,11 @@ path.k-other { stroke: var(--ink-faint); }
 .pp-ev { position: relative; display: flex; gap: 10px; align-items: flex-start; padding: 8px 6px; border-radius: 10px; }
 .pp-ev .pl-tick { position: static; flex: none; width: 24px; height: 24px; margin-top: 1px; }
 .pp-ev .pl-tick .icon { width: 14px; height: 14px; }
-.pp-ev.next { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pp-ev.here { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.pp-sec { display: flex; flex-direction: column; padding: 14px 6px 4px; }
+.pp-sec:first-child { padding-top: 2px; }
+.pp-sec b { font-family: var(--title-font); font-size: calc(18px * var(--ts)); font-weight: 600; }
+.pp-sec span { font-size: 12.5px; color: var(--ink-soft); font-style: italic; }
 .pp-text { flex: 1; min-width: 0; cursor: pointer; }
 .pp-text b { display: block; font-size: 15px; line-height: 1.3; }
 .pp-text p { margin: 3px 0 0; color: var(--ink-soft); font-family: var(--body-font); font-size: 14.5px; line-height: 1.4; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -309,15 +326,19 @@ path.k-other { stroke: var(--ink-faint); }
 .unlock-card .link { align-self: center; font-size: 14px; }
 
 /* ---------- story ideas ---------- */
-.ideas { columns: 3 280px; column-gap: 18px; }
+.ideas { position: relative; } /* the cards are placed in columns by UI.ideaCards */
+.ideas > .idea { position: absolute; }
 .idea {
-  break-inside: avoid; margin: 0 0 18px; padding: 18px 20px 14px; border-radius: 14px;
+  margin: 0; padding: 18px 20px 14px; border-radius: 14px;
   background: var(--paper); border: 1px solid var(--line); cursor: pointer;
   box-shadow: 0 2px 8px rgba(60, 40, 20, .05); transition: transform .15s, box-shadow .15s;
 }
 .idea:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(60, 40, 20, .09); }
 .idea h3 { font-size: calc(23px * var(--ts)); }
-.idea p { white-space: pre-wrap; font-family: var(--body-font); color: var(--ink-soft); margin: 8px 0 0; font-size: 15.5px; }
+.idea p { white-space: pre-wrap; font-family: var(--body-font); color: var(--ink-soft); margin: 8px 0 0; font-size: 15.5px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 8; overflow: hidden; }
+.idea.open p { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.show-more { border: 0; background: none; padding: 4px 0 0; margin: 0; color: var(--accent-deep); font-weight: 600; font-size: 14px; cursor: pointer; }
+.show-more:hover { text-decoration: underline; }
 .idea-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .idea .when { font-size: 12.5px; color: var(--ink-faint); }
 .ideas.started .idea { opacity: .8; }

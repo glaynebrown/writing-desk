@@ -318,5 +318,47 @@ const UI = (() => {
     });
   }
 
-  return { $, $$, esc, icon, ls, num, wordsIn, plural, narrow, dayKey, ago, toast, oops, ask, sheet, closeSheet, sheetOpen, popover, closePopover, prepPhoto, prepLineArt, isPhoto, pickFile, sortable, numWord, loadScript };
+  // ---------- idea cards: Pinterest-style columns + "Show more" ----------
+  // Each card goes into the shortest column (placed here, not with CSS columns: Safari pushed the top of
+  // the second column down). A long idea shows its first lines with "Show more" (the card still opens to edit).
+  function ideaCards(box, minW = 280, gap = 18) {
+    if (!box) return;
+    if (!box._ideas) {
+      box._ideas = true;
+      box.addEventListener('click', e => {
+        const m = e.target.closest('[data-showmore]');
+        if (!m) return;
+        e.stopPropagation(); // (not the card's own click, which opens it)
+        const card = m.closest('.idea');
+        card.classList.toggle('open');
+        m.textContent = card.classList.contains('open') ? 'Show less' : 'Show more';
+        lay();
+      });
+    }
+    const cards = Array.from(box.children).filter(c => c.classList.contains('idea'));
+    function lay() {
+      const W = box.clientWidth;
+      if (!W) return;
+      const cols = Math.max(1, Math.min(3, Math.floor((W + gap) / (minW + gap))));
+      const cw = (W - gap * (cols - 1)) / cols, hs = new Array(cols).fill(0);
+      cards.forEach(c => { c.style.width = cw + 'px'; });
+      // "Show more" only where the text is actually cut short
+      cards.forEach(c => {
+        const p = c.querySelector(':scope > p');
+        if (!p || c.classList.contains('open')) return;
+        const cut = p.scrollHeight > p.clientHeight + 2;
+        let m = c.querySelector(':scope > [data-showmore]');
+        if (cut && !m) { m = document.createElement('button'); m.className = 'show-more'; m.dataset.showmore = '1'; m.textContent = 'Show more'; p.after(m); }
+        if (!cut && m) m.remove();
+      });
+      cards.forEach(c => { const i = hs.indexOf(Math.min(...hs)); c.style.left = i * (cw + gap) + 'px'; c.style.top = hs[i] + 'px'; hs[i] += c.offsetHeight + gap; });
+      box.style.height = Math.max(0, Math.max(...hs) - gap) + 'px';
+    }
+    box._lay = lay;
+    lay();
+    if (document.fonts) document.fonts.ready.then(lay);
+  }
+  window.addEventListener('resize', () => { clearTimeout(ideaCards.t); ideaCards.t = setTimeout(() => $$('.ideas').forEach(b => b._lay && b._lay()), 80); });
+
+  return { ideaCards, $, $$, esc, icon, ls, num, wordsIn, plural, narrow, dayKey, ago, toast, oops, ask, sheet, closeSheet, sheetOpen, popover, closePopover, prepPhoto, prepLineArt, isPhoto, pickFile, sortable, numWord, loadScript };
 })();
