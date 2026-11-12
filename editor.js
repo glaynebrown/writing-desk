@@ -1664,14 +1664,23 @@ const Editor = (() => {
       const ch = P.chapters, pts = list.filter(e => e.kind !== 'section');
       const cur = P.byId[P.current], here = cur ? K.keyOf(cur, ch) : '';
       $('.pp-count', el).textContent = pts.length ? `${pts.filter(e => e.done).length} of ${pts.length} written` : '';
-      $('.pp-list', el).innerHTML = list.length ? K.rows(list).map(ev => {
-        if (ev.kind === 'section') return `<li class="pp-sec"><b>${esc(ev.title || 'Untitled section')}</b>${ev.range ? `<span>${esc(ev.range)}</span>` : ''}</li>`;
+      // folded sections as on the Plot tab -- except the one holding the chapter being written
+      const folds = K.folds(P.pid);
+      const holds = id => { const i = list.findIndex(e => e.id === id); for (let j = i + 1; j < list.length && list[j].kind !== 'section'; j++) if (here && list[j].ch === here) return true; return false; };
+      let hidden = false;
+      $('.pp-list', el).innerHTML = list.length ? K.rows(list).map((ev, i) => {
+        if (ev.kind === 'section') {
+          hidden = folds.includes(ev.id) && !holds(ev.id);
+          return `<li class="pp-sec ${hidden ? 'folded-sec' : ''}" data-pp="fold" data-id="${ev.id}" title="${hidden ? 'Show this section' : 'Fold this section up'}"><b>${icon('down', 'pp-chev')}${esc(ev.title || 'Untitled section')}</b>${ev.range || hidden ? `<span>${esc([ev.range, hidden ? K.foldNote(list, i) : ''].filter(Boolean).join(' · '))}</span>` : ''}</li>`;
+        }
+        if (hidden) return '';
         const st = K.status(ev, ch), l = K.label(ev, ch);
         return `<li class="pp-ev st-${st} ${ev.done ? 'done' : ''} ${ev.ch && ev.ch === here ? 'here' : ''}" data-id="${ev.id}">
           <button class="pl-tick" data-pp="done" title="${K.tickTitle(st)}" aria-pressed="${ev.done ? 'true' : 'false'}">${K.tickHtml(st)}</button>
-          <div class="pp-text" data-pp="open"><b>${esc(l.own ? `${l.name} · ${l.own}` : l.name)}</b>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}</div></li>`;
+          <div class="pp-text" data-pp="open"><b>${esc(l.own ? `${l.name} · ${l.own}` : l.name)}</b>${ev.text ? `<div class="pp-body">${K.html(ev.text)}</div>` : ''}</div></li>`;
       }).join('')
         : '<li class="muted pp-empty">Nothing planned yet — add plot points on the Plot page.</li>';
+      $$('.pp-body', el).forEach(b => b.classList.toggle('long', b.scrollHeight > b.clientHeight + 2)); // (fades out only when cut short)
       // opened at the chapter being written (or the first point not done yet)
       if (first && list.length) {
         first = false;
@@ -1685,6 +1694,7 @@ const Editor = (() => {
       const a = e.target.closest('[data-pp]');
       if (!a) return;
       if (a.dataset.pp === 'close') return closePlot();
+      if (a.dataset.pp === 'fold') { const f = K.folds(P.pid), id = a.dataset.id; K.setFolds(P.pid, f.includes(id) ? f.filter(x => x !== id) : [...f, id]); return draw(); }
       const li = a.closest('.pp-ev');
       if (a.dataset.pp === 'open') return li.classList.toggle('open');
       if (a.dataset.pp === 'done') {

@@ -487,26 +487,63 @@ const Project = (() => {
       });
     },
     tickHtml(st) { return icon(st === 'writing' ? 'quill-solid' : 'check'); },
+    // folded (collapsed) sections, remembered on this device for each project
+    folds(pid) { try { return JSON.parse(UI.ls.get('qc-plotfold:' + pid, '[]')) || []; } catch (e) { return []; } },
+    setFolds(pid, ids) { UI.ls.set('qc-plotfold:' + pid, ids.length ? JSON.stringify(ids) : null); },
+    // A plot point's summary as HTML: lines starting "-" (or •, *) are bullets, "1." numbered; a tab (or two
+    // spaces) in front = one level in, up to 3. Other lines are plain paragraphs.
+    html(t) {
+      const out = [], st = []; // open lists: { tag, li }
+      const closeTo = n => { while (st.length > n) { const x = st.pop(); out.push((x.li ? '</li>' : '') + `</${x.tag}>`); } };
+      for (const raw of String(t || '').replace(/\r/g, '').split('\n')) {
+        const m = raw.match(/^([\t ]*)([-•*–]|\d+[.)])\s+(.*)$/);
+        if (!m) { closeTo(0); if (raw.trim()) out.push(`<p>${esc(raw)}</p>`); continue; }
+        const level = Math.min(3, m[1].replace(/ {2}/g, '\t').replace(/ /g, '').length + 1), tag = /\d/.test(m[2]) ? 'ol' : 'ul';
+        closeTo(level);
+        if (st.length === level) { const x = st[level - 1]; if (x.tag !== tag) closeTo(level - 1); else if (x.li) { out.push('</li>'); x.li = false; } }
+        while (st.length < level) { out.push(`<${tag}>`); st.push({ tag, li: false }); }
+        out.push(`<li>${esc(m[3])}`);
+        st[level - 1].li = true;
+      }
+      closeTo(0);
+      return out.join('');
+    },
+    // "Chapters 1–3 · 6 points · 4 written" for a folded section
+    foldNote(events, i) {
+      const pts = [];
+      for (let j = i + 1; j < events.length && events[j].kind !== 'section'; j++) pts.push(events[j]);
+      return pts.length ? `${plural(pts.length, 'point')} · ${pts.filter(e => e.done).length} written` : 'empty';
+    },
     tickTitle(st) { return st === 'done' ? 'Written — tap to undo' : st === 'writing' ? 'Being written — tap once it’s done' : 'Mark as written'; },
   };
   function timelinePage(box) {
     const ch = O.chapters;
     const pts = O.events.filter(e => e.kind !== 'section'), done = pts.filter(e => e.done).length;
-    const row = ev => {
-      if (ev.kind === 'section') return `<li class="tl-ev pl-sec" data-id="${ev.id}"><button class="pl-sec-card" data-sec="${ev.id}"><h2>${esc(ev.title || 'Untitled section')}</h2>${ev.range ? `<span class="pl-range">${esc(ev.range)}</span>` : ''}</button></li>`;
+    const secs = O.events.filter(e => e.kind === 'section');
+    const folds = PlotK.folds(O.pid).filter(id => secs.some(x => x.id === id));
+    let hidden = false; // (under a folded section)
+    const row = (ev, i) => {
+      if (ev.kind === 'section') {
+        hidden = folds.includes(ev.id);
+        return `<li class="tl-ev pl-sec ${hidden ? 'folded-sec' : ''}" data-id="${ev.id}"><button class="pl-fold" data-fold="${ev.id}" data-nodrag title="${hidden ? 'Show this section' : 'Fold this section up'}" aria-expanded="${hidden ? 'false' : 'true'}">${icon('down')}</button><button class="pl-sec-card" data-sec="${ev.id}"><h2>${esc(ev.title || 'Untitled section')}</h2>${ev.range || hidden ? `<span class="pl-range">${esc([ev.range, hidden ? PlotK.foldNote(O.events, i) : ''].filter(Boolean).join(' · '))}</span>` : ''}</button></li>`;
+      }
       const st = PlotK.status(ev, ch), l = PlotK.label(ev, ch);
-      return `<li class="tl-ev st-${st} ${ev.done ? 'done' : ''}" data-id="${ev.id}"><button class="pl-tick" data-done="${ev.id}" title="${PlotK.tickTitle(st)}" aria-label="${PlotK.tickTitle(st)}" aria-pressed="${ev.done ? 'true' : 'false'}">${PlotK.tickHtml(st)}</button><button class="tl-card" data-ev="${ev.id}">
-        <h3>${l.own ? `<span class="pl-num">${esc(l.name)}</span>${esc(l.own)}` : esc(l.name)}</h3>${ev.text ? `<p>${esc(ev.text)}</p>` : ''}
+      return `<li class="tl-ev st-${st} ${ev.done ? 'done' : ''} ${hidden ? 'folded' : ''}" data-id="${ev.id}"><button class="pl-tick" data-done="${ev.id}" title="${PlotK.tickTitle(st)}" aria-label="${PlotK.tickTitle(st)}" aria-pressed="${ev.done ? 'true' : 'false'}">${PlotK.tickHtml(st)}</button><button class="tl-card" data-ev="${ev.id}">
+        <h3>${l.own ? `<span class="pl-num">${esc(l.name)}</span>${esc(l.own)}` : esc(l.name)}</h3>${ev.text ? `<div class="pl-body">${PlotK.html(ev.text)}</div>` : ''}
       </button></li>`;
     };
     box.innerHTML = `<div class="ps-head"><h1>Plot</h1><div class="head-btns"><button class="btn quiet" data-a="add-sec">${icon('plus')} Section</button><button class="btn" data-a="add-ev">${icon('plus')} Plot point</button></div></div>
-      ${O.events.length ? `${pts.length ? `<p class="pl-count">${done} of ${plural(pts.length, 'plot point')} written</p>` : ''}
+      ${O.events.length ? `<div class="pl-bar">${pts.length ? `<p class="pl-count">${done} of ${plural(pts.length, 'plot point')} written</p>` : '<span></span>'}${secs.length ? `<span class="pl-folds"><button class="link" data-a="fold-all">Collapse all</button> · <button class="link" data-a="unfold-all">Expand all</button></span>` : ''}</div>
       <ol class="tl pl" id="tl">${PlotK.rows(O.events).map(row).join('')}</ol><p class="hint center">Drag to move things around. ○ planned · ${icon('quill-solid', 'inline')} being written (its chapter has words) · ✓ tick it once it’s done.</p>`
         : empty('Nothing planned yet. Add your story’s plot points chapter by chapter — and sections like “Setting the scene” to group them.')}`;
     const tl = $('#tl');
-    if (tl) sortable(tl, '.tl-ev', {
+    // (only what's showing can be dragged; a folded section's points travel with it)
+    const kidsOf = id => { const i = O.events.findIndex(e => e.id === id), out = []; for (let j = i + 1; j < O.events.length && O.events[j].kind !== 'section'; j++) out.push(O.events[j].id); return out; };
+    if (tl) sortable(tl, '.tl-ev:not(.folded)', {
       key: el => el.dataset.id,
-      onDrop: ids => {
+      onDrop: shown => {
+        const ids = [];
+        shown.forEach(id => { ids.push(id); if (folds.includes(id)) ids.push(...kidsOf(id)); });
         const list2 = ids.map((id, i) => ({ id, order: i + 1 }));
         list2.forEach(x => { const ev = O.events.find(e => e.id === x.id); if (ev) ev.order = x.order; });
         O.events.sort((a, b) => (a.order || 0) - (b.order || 0));
@@ -525,10 +562,11 @@ const Project = (() => {
     O.ctx.api.saveDoc('events', id, full);
     draw();
   }
-  // the chapter choices: special sections, and the numbered chapters (a few past the last one, to plan ahead)
+  // the chapter choices: special sections, and the numbered chapters -- at least to 40 and always 10 past the
+  // furthest one written or planned, to map the story out ahead ("Later chapter…" in the sheet goes further)
   function chapterChoices(chapters, events) {
     const planned = events.filter(e => e.ch && e.ch[0] === 'n').map(e => +e.ch.slice(2));
-    const n = Math.max(chapters.filter(c => !c.special).length, ...planned, 0) + 5;
+    const n = Math.max(40, Math.max(chapters.filter(c => !c.special).length, ...planned, 0) + 10);
     const specials = [...new Set([...SPECIAL_WORDS, ...chapters.filter(c => c.special).map(c => c.special), ...events.filter(e => e.ch && e.ch[0] === 's').map(e => e.ch.slice(2))])];
     const before = specials.filter(w => ['Foreword', 'Preface', 'Prologue'].includes(w)), after = specials.filter(w => !before.includes(w));
     const opt = k => { const l = PlotK.label({ ch: k }, chapters); return [k, l.own ? `${l.name} · ${l.own}` : l.name]; };
@@ -537,19 +575,35 @@ const Project = (() => {
   function evSheet(ev) {
     const isNew = !ev;
     const pts = O.events.filter(e => e.kind !== 'section');
-    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), ch: (pts[pts.length - 1] || {}).ch || 'n:1', text: '', done: false };
+    // a new one starts on the chapter after the last plot point (pick another for a second point in the same chapter)
+    const after = k => (!k ? 'n:1' : k[0] === 'n' ? 'n:' + (+k.slice(2) + 1) : ['Foreword', 'Preface', 'Prologue'].includes(k.slice(2)) ? 'n:1' : k);
+    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), ch: after((pts[pts.length - 1] || {}).ch), text: '', done: false };
     const choices = chapterChoices(O.chapters, O.events);
     if (ev.ch && !choices.some(([k]) => k === ev.ch)) choices.push([ev.ch, PlotK.text(ev, O.chapters)]);
     const el = sheet(`<h2>${isNew ? 'New plot point' : 'Plot point'}</h2>
-      <div class="field"><label for="ev-ch">Chapter</label><select class="input" id="ev-ch">${ev.ch ? '' : '<option value="">Pick a chapter</option>'}${choices.map(([k, n]) => `<option value="${esc(k)}" ${k === ev.ch ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+      <div class="field"><label for="ev-ch">Chapter</label><select class="input" id="ev-ch">${ev.ch ? '' : '<option value="">Pick a chapter</option>'}${choices.map(([k, n]) => `<option value="${esc(k)}" ${k === ev.ch ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="later">Later chapter…</option></select></div>
       ${!ev.ch && ev.title ? `<p class="hint">Was called “${esc(ev.title)}”.</p>` : ''}
-      <div class="field"><label for="ev-text">What happens</label><textarea class="input" id="ev-text" rows="7" placeholder="What happens, who’s there, why it matters…" autofocus>${esc(ev.text || '')}</textarea></div>
+      <div class="field"><label for="ev-text">What happens</label><textarea class="input" id="ev-text" rows="9" placeholder="What happens, who’s there, why it matters…" autofocus>${esc(ev.text || '')}</textarea>
+        <p class="hint">Start a line with <b>-</b> for a bullet (or <b>1.</b> for a numbered list) · <b>Tab</b> / <b>Shift-Tab</b> moves a bullet in and out · pasting a bulleted list keeps its bullets</p></div>
       <label class="check"><input type="checkbox" id="ev-done" ${ev.done ? 'checked' : ''}> Written</label>
       <div class="row ${isNew ? 'end' : 'between'}">${isNew ? '' : `<button class="btn quiet danger-text" id="ev-del">${icon('trash')} Delete</button>`}
         <span><button class="btn quiet" data-act="close">Cancel</button> <button class="btn" id="ev-save">Save</button></span></div>`);
+    bulletBox($('#ev-text'));
+    // "Later chapter…": type any chapter number
+    let lastCh = $('#ev-ch').value;
+    $('#ev-ch').addEventListener('change', async e => {
+      const sel = e.target;
+      if (sel.value !== 'later') { lastCh = sel.value; return; }
+      const typed = await ask('Which chapter?', 'Type the chapter number.', 'Use it', { input: '', placeholder: '52' });
+      const n = parseInt(typed, 10);
+      if (!(n > 0)) { sel.value = lastCh; return; }
+      const k = 'n:' + n;
+      if (![...sel.options].some(o => o.value === k)) sel.querySelector('option[value="later"]').before(new Option(PlotK.text({ ch: k }, O.chapters), k));
+      sel.value = lastCh = k;
+    });
     el.addEventListener('click', async e => {
       if (e.target.closest('#ev-save')) {
-        ev.ch = $('#ev-ch').value || '';
+        ev.ch = $('#ev-ch').value === 'later' ? lastCh : $('#ev-ch').value || '';
         ev.text = $('#ev-text').value.trim();
         ev.done = $('#ev-done').checked;
         const full = { ...ev };
@@ -562,6 +616,58 @@ const Project = (() => {
         O.ctx.api.deleteDoc('events', ev.id);
         closeSheet(true);
       }
+    });
+  }
+  // Bullets in a plain text box: Return carries a bullet on (an empty one ends the list), Tab / Shift-Tab move
+  // one in and out, and pasting a bulleted list (Google Docs, Word…) brings it in as "-" lines.
+  const BUL = /^([\t ]*)([-•*–]|\d+[.)])(\s+)(.*)$/;
+  function bulletBox(ta) {
+    const lineAt = () => { const v = ta.value, a = ta.selectionStart; const st = v.lastIndexOf('\n', a - 1) + 1; let en = v.indexOf('\n', a); if (en < 0) en = v.length; return { st, en, text: v.slice(st, en) }; };
+    const put = (from, to, text, caret) => { ta.focus(); ta.setSelectionRange(from, to); if (!document.execCommand('insertText', false, text)) ta.setRangeText(text, from, to, 'end'); if (caret != null) ta.setSelectionRange(caret, caret); };
+    ta.addEventListener('keydown', e => {
+      const L = lineAt(), m = L.text.match(BUL);
+      if (e.key === 'Tab' && m) {
+        e.preventDefault();
+        const a = ta.selectionStart;
+        if (!e.shiftKey) { if (m[1].replace(/ {2}/g, '\t').length >= 2) return; put(L.st, L.st, '\t', a + 1); }
+        else if (m[1]) { const cut = m[1].startsWith('\t') ? 1 : Math.min(2, m[1].length); put(L.st, L.st + cut, '', Math.max(L.st, a - cut)); }
+        return;
+      }
+      if (e.key === 'Enter' && !e.shiftKey && m && ta.selectionStart === ta.selectionEnd) {
+        e.preventDefault();
+        if (!m[4].trim()) { put(L.st, L.en, '', L.st); return; } // an empty bullet ends the list
+        const mark = /\d/.test(m[2]) ? (parseInt(m[2], 10) + 1) + m[2].replace(/\d+/, '') : m[2];
+        put(ta.selectionStart, ta.selectionStart, '\n' + m[1] + mark + ' ');
+      }
+    });
+    ta.addEventListener('paste', e => {
+      const html = e.clipboardData && e.clipboardData.getData('text/html');
+      if (!html || !/<li[\s>]/i.test(html)) return;
+      const doc = new DOMParser().parseFromString(html, 'text/html'), lines = [];
+      const walk = (el, depth) => {
+        for (const n of el.children) {
+          const t = n.tagName;
+          if (t === 'UL' || t === 'OL') {
+            let k = 0;
+            for (const li of n.children) {
+              if (li.tagName !== 'LI') continue;
+              k++;
+              // (Google Docs marks the level on the item; other apps nest lists inside items)
+              const lvl = Math.max(1, Math.min(3, Number(li.getAttribute('aria-level')) || depth + 1));
+              const own = Array.from(li.childNodes).filter(x => !(x.tagName === 'UL' || x.tagName === 'OL')).map(x => x.textContent).join('').replace(/\s+/g, ' ').trim();
+              if (own) lines.push('\t'.repeat(lvl - 1) + (t === 'OL' ? k + '. ' : '- ') + own);
+              for (const sub of li.children) if (sub.tagName === 'UL' || sub.tagName === 'OL') walk({ children: [sub] }, depth + 1);
+            }
+          }
+          else if (/^(P|H[1-6]|DIV)$/.test(t) && !n.querySelector('ul,ol')) { const tx = n.textContent.replace(/\s+/g, ' ').trim(); if (tx) lines.push(tx); }
+          else walk(n, depth);
+        }
+      };
+      walk(doc.body, 0);
+      if (!lines.length) return;
+      e.preventDefault();
+      const a = ta.selectionStart, startOfLine = a === 0 || ta.value[a - 1] === '\n';
+      put(a, ta.selectionEnd, (startOfLine ? '' : '\n') + lines.join('\n'));
     });
   }
   // a section: just its name (deleting it keeps its plot points -- they join the section above)
@@ -899,6 +1005,8 @@ const Project = (() => {
     if (A === 'add-char') return addChar();
     if (A === 'add-ev') return evSheet(null);
     if (A === 'add-sec') return secSheet(null);
+    if (A === 'fold-all') { PlotK.setFolds(O.pid, O.events.filter(e => e.kind === 'section').map(e => e.id)); return draw(); }
+    if (A === 'unfold-all') { PlotK.setFolds(O.pid, []); return draw(); }
     if (A === 'pin-add') return addPhotos(await pickFile('image/*', true));
     if (A === 'pin-paste') return pasteButton();
     if (A === 'add-idea') return ideaSheet(O.ctx, O.p, null, { chapters: O.chapters, chars: O.chars });
@@ -908,6 +1016,8 @@ const Project = (() => {
     if (ifl) { ideaFilter = ifl.dataset.if; return draw(); }
     const pi = t.closest('[data-pi]');
     if (pi) return ideaSheet(O.ctx, O.p, O.pideas.find(x => x.id === pi.dataset.pi), { chapters: O.chapters, chars: O.chars });
+    const fo = t.closest('[data-fold]');
+    if (fo) { const f = PlotK.folds(O.pid), id = fo.dataset.fold; PlotK.setFolds(O.pid, f.includes(id) ? f.filter(x => x !== id) : [...f, id]); return draw(); }
     const sc = t.closest('[data-sec]');
     if (sc) return secSheet(O.events.find(x => x.id === sc.dataset.sec));
     const dn = t.closest('[data-done]');
