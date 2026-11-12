@@ -1671,7 +1671,7 @@ const Editor = (() => {
       $('.pp-list', el).innerHTML = list.length ? K.rows(list).map((ev, i) => {
         if (ev.kind === 'section') {
           hidden = folds.includes(ev.id) && !holds(ev.id);
-          return `<li class="pp-sec ${hidden ? 'folded-sec' : ''}" data-pp="fold" data-id="${ev.id}" title="${hidden ? 'Show this section' : 'Fold this section up'}"><b>${icon('down', 'pp-chev')}${esc(ev.title || 'Untitled section')}</b>${ev.range || hidden ? `<span>${esc([ev.range, hidden ? K.foldNote(list, i) : ''].filter(Boolean).join(' · '))}</span>` : ''}</li>`;
+          return `<li class="pp-sec ${hidden ? 'folded-sec' : ''}" data-pp="fold" data-id="${ev.id}" title="${hidden ? 'Show this section' : 'Fold this section up'}"><b>${icon('down', 'pp-chev')}${esc(ev.title || 'Untitled section')}</b></li>`;
         }
         if (hidden) return '';
         const st = K.status(ev, ch), l = K.label(ev, ch);

@@ -446,7 +446,8 @@ const Project = (() => {
   // The story planned ahead, in story order, in the 'events' collection:
   //   a section    { pid, order, kind: 'section', title }   ("Setting the scene"; its chapter range is worked out)
   //   a plot point { pid, order, ch, text, done }           ch = 'n:4' = Chapter 4 (counting numbered chapters only,
-  //                                                          so it can be planned before it's written) or 's:Prologue'
+  //                                                          so it can be planned before it's written), 's:Prologue',
+  //                                                          or 'x:Ending' = her own words (no chapter yet)
   // A chapter can have one point or several. A point shows ○ (planned), a quill once its chapter has words in it,
   // and ✓ once she ticks it. (Older events may also hold title / when / chapters / chars -- kept; with no ch, the
   // title stands in.) The writing page shows the same list beside the page (editor.js plotPanel).
@@ -457,11 +458,13 @@ const Project = (() => {
     chapterOf(key, chapters) {
       if (!key) return null;
       const v = key.slice(2);
+      if (key[0] === 'x') return null; // (her own words: not a chapter)
       return key[0] === 's' ? chapters.find(c => c.special === v) || null : chapters.filter(c => !c.special)[Number(v) - 1] || null;
     },
     // "Chapter 4" / "Prologue", and the chapter's own title if she gave it one
     label(ev, chapters) {
       if (!ev.ch) return { name: ev.title || 'No chapter yet', own: '' };
+      if (ev.ch[0] === 'x') return { name: ev.ch.slice(2), own: '' };
       const name = ev.ch[0] === 's' ? ev.ch.slice(2) : 'Chapter ' + ev.ch.slice(2);
       const c = PlotK.chapterOf(ev.ch, chapters), t = ((c && c.title) || '').trim();
       return { name, own: t && !AUTO_TITLE.test(t) && t !== (c && c.special) ? t : '' };
@@ -470,7 +473,7 @@ const Project = (() => {
     status(ev, chapters) { if (ev.done) return 'done'; const c = PlotK.chapterOf(ev.ch, chapters); return c && (c.words || 0) > 0 ? 'writing' : 'planned'; },
     // "Chapters 1–3" for the points under a section
     range(points) {
-      const keys = []; points.forEach(e => { if (e.ch && !keys.includes(e.ch)) keys.push(e.ch); });
+      const keys = []; points.forEach(e => { if (e.ch && e.ch[0] !== 'x' && !keys.includes(e.ch)) keys.push(e.ch); });
       if (!keys.length) return '';
       const nm = k => (k[0] === 's' ? k.slice(2) : 'Chapter ' + k.slice(2));
       const nums = keys.filter(k => k[0] === 'n').map(k => +k.slice(2));
@@ -508,12 +511,6 @@ const Project = (() => {
       closeTo(0);
       return out.join('');
     },
-    // "Chapters 1–3 · 6 points · 4 written" for a folded section
-    foldNote(events, i) {
-      const pts = [];
-      for (let j = i + 1; j < events.length && events[j].kind !== 'section'; j++) pts.push(events[j]);
-      return pts.length ? `${plural(pts.length, 'point')} · ${pts.filter(e => e.done).length} written` : 'empty';
-    },
     tickTitle(st) { return st === 'done' ? 'Written — tap to undo' : st === 'writing' ? 'Being written — tap once it’s done' : 'Mark as written'; },
   };
   function timelinePage(box) {
@@ -525,7 +522,7 @@ const Project = (() => {
     const row = (ev, i) => {
       if (ev.kind === 'section') {
         hidden = folds.includes(ev.id);
-        return `<li class="tl-ev pl-sec ${hidden ? 'folded-sec' : ''}" data-id="${ev.id}"><button class="pl-fold" data-fold="${ev.id}" data-nodrag title="${hidden ? 'Show this section' : 'Fold this section up'}" aria-expanded="${hidden ? 'false' : 'true'}">${icon('down')}</button><button class="pl-sec-card" data-sec="${ev.id}"><h2>${esc(ev.title || 'Untitled section')}</h2>${ev.range || hidden ? `<span class="pl-range">${esc([ev.range, hidden ? PlotK.foldNote(O.events, i) : ''].filter(Boolean).join(' · '))}</span>` : ''}</button></li>`;
+        return `<li class="tl-ev pl-sec ${hidden ? 'folded-sec' : ''}" data-id="${ev.id}"><button class="pl-fold" data-fold="${ev.id}" data-nodrag title="${hidden ? 'Show this section' : 'Fold this section up'}" aria-expanded="${hidden ? 'false' : 'true'}">${icon('down')}</button><button class="pl-sec-card" data-sec="${ev.id}"><h2>${esc(ev.title || 'Untitled section')}</h2></button></li>`;
       }
       const st = PlotK.status(ev, ch), l = PlotK.label(ev, ch);
       return `<li class="tl-ev st-${st} ${ev.done ? 'done' : ''} ${hidden ? 'folded' : ''}" data-id="${ev.id}"><button class="pl-tick" data-done="${ev.id}" title="${PlotK.tickTitle(st)}" aria-label="${PlotK.tickTitle(st)}" aria-pressed="${ev.done ? 'true' : 'false'}">${PlotK.tickHtml(st)}</button><button class="tl-card" data-ev="${ev.id}">
@@ -534,7 +531,7 @@ const Project = (() => {
     };
     box.innerHTML = `<div class="ps-head"><h1>Plot</h1><div class="head-btns"><button class="btn quiet" data-a="add-sec">${icon('plus')} Section</button><button class="btn" data-a="add-ev">${icon('plus')} Plot point</button></div></div>
       ${O.events.length ? `<div class="pl-bar">${pts.length ? `<p class="pl-count">${done} of ${plural(pts.length, 'plot point')} written</p>` : '<span></span>'}${secs.length ? `<span class="pl-folds"><button class="link" data-a="fold-all">Collapse all</button> · <button class="link" data-a="unfold-all">Expand all</button></span>` : ''}</div>
-      <ol class="tl pl" id="tl">${PlotK.rows(O.events).map(row).join('')}</ol><p class="hint center">Drag to move things around. ○ planned · ${icon('quill-solid', 'inline')} being written (its chapter has words) · ✓ tick it once it’s done.</p>`
+      <ol class="tl pl" id="tl">${PlotK.rows(O.events).map(row).join('')}</ol>`
         : empty('Nothing planned yet. Add your story’s plot points chapter by chapter — and sections like “Setting the scene” to group them.')}`;
     const tl = $('#tl');
     // (only what's showing can be dragged; a folded section's points travel with it)
@@ -576,12 +573,14 @@ const Project = (() => {
     const isNew = !ev;
     const pts = O.events.filter(e => e.kind !== 'section');
     // a new one starts on the chapter after the last plot point (pick another for a second point in the same chapter)
+    // (her own words like "Ending" are skipped: it follows the last point with a real chapter)
     const after = k => (!k ? 'n:1' : k[0] === 'n' ? 'n:' + (+k.slice(2) + 1) : ['Foreword', 'Preface', 'Prologue'].includes(k.slice(2)) ? 'n:1' : k);
-    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), ch: after((pts[pts.length - 1] || {}).ch), text: '', done: false };
+    const lastReal = pts.filter(e => e.ch && e.ch[0] !== 'x').pop();
+    ev = ev ? { ...ev } : { pid: O.pid, order: nextOrder(O.events), ch: after(lastReal && lastReal.ch), text: '', done: false };
     const choices = chapterChoices(O.chapters, O.events);
     if (ev.ch && !choices.some(([k]) => k === ev.ch)) choices.push([ev.ch, PlotK.text(ev, O.chapters)]);
     const el = sheet(`<h2>${isNew ? 'New plot point' : 'Plot point'}</h2>
-      <div class="field"><label for="ev-ch">Chapter</label><select class="input" id="ev-ch">${ev.ch ? '' : '<option value="">Pick a chapter</option>'}${choices.map(([k, n]) => `<option value="${esc(k)}" ${k === ev.ch ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="later">Later chapter…</option></select></div>
+      <div class="field"><label for="ev-ch">Chapter</label><select class="input" id="ev-ch">${ev.ch ? '' : '<option value="">Pick a chapter</option>'}${choices.map(([k, n]) => `<option value="${esc(k)}" ${k === ev.ch ? 'selected' : ''}>${esc(n)}</option>`).join('')}<option value="later">Later chapter…</option><option value="own">Your own words…</option></select></div>
       ${!ev.ch && ev.title ? `<p class="hint">Was called “${esc(ev.title)}”.</p>` : ''}
       <div class="field"><label for="ev-text">What happens</label><textarea class="input" id="ev-text" rows="9" placeholder="What happens, who’s there, why it matters…" autofocus>${esc(ev.text || '')}</textarea>
         <p class="hint">Start a line with <b>-</b> for a bullet (or <b>1.</b> for a numbered list) · <b>Tab</b> / <b>Shift-Tab</b> moves a bullet in and out · pasting a bulleted list keeps its bullets</p></div>
@@ -593,6 +592,16 @@ const Project = (() => {
     let lastCh = $('#ev-ch').value;
     $('#ev-ch').addEventListener('change', async e => {
       const sel = e.target;
+      if (sel.value === 'own') {
+        // her own words instead of a chapter ("Ending")
+        const typed = await ask('What should it say?', 'Instead of a chapter — like <b>Ending</b> or <b>Final battle</b>. Pick the real chapter any time later.', 'Use it', { input: lastCh && lastCh[0] === 'x' ? lastCh.slice(2) : '', placeholder: 'Ending' });
+        const w = (typed || '').trim().slice(0, 60);
+        if (!w) { sel.value = lastCh; return; }
+        const k = 'x:' + w;
+        if (![...sel.options].some(o => o.value === k)) sel.querySelector('option[value="later"]').before(new Option(w, k));
+        sel.value = lastCh = k;
+        return;
+      }
       if (sel.value !== 'later') { lastCh = sel.value; return; }
       const typed = await ask('Which chapter?', 'Type the chapter number.', 'Use it', { input: '', placeholder: '52' });
       const n = parseInt(typed, 10);
@@ -603,7 +612,7 @@ const Project = (() => {
     });
     el.addEventListener('click', async e => {
       if (e.target.closest('#ev-save')) {
-        ev.ch = $('#ev-ch').value === 'later' ? lastCh : $('#ev-ch').value || '';
+        ev.ch = ['later', 'own'].includes($('#ev-ch').value) ? lastCh : $('#ev-ch').value || '';
         ev.text = $('#ev-text').value.trim();
         ev.done = $('#ev-done').checked;
         const full = { ...ev };
